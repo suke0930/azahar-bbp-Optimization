@@ -1,40 +1,40 @@
 # Azahar BBP Optimization
 
-This repository is a dedicated Azahar instance for optimizing and testing
-Daigasso! Band Brothers P, known in Japanese as バンブラP and also referred to
-as BBP.
+This is a personal Azahar fork dedicated to optimizing and testing Daigasso!
+Band Brothers P, known in Japanese as バンブラP and also referred to as BBP.
 
-It is based on the upstream Azahar emulator and is used to publish BBP-focused
-patches, experiments, and builds separately from the general-purpose emulator
-tree.
+The repository is a personal publication and experiment space for BBP-focused
+patches, diagnostics, and builds.
 
 ## Purpose
 
-- Maintain an Azahar fork focused on BBP rendering and performance behavior.
-- Publish validated BBP optimization patches in a dedicated repository.
-- Keep BBP-specific experiments separate from upstream Azahar development.
-- Provide a stable place for future BBP-focused builds and patch review.
+- Maintain a personal Azahar fork focused on BBP rendering and performance.
+- Publish BBP optimization patches and experimental builds without tying them to
+  upstream acceptance criteria.
+- Keep BBP-specific diagnostics and experiments in one public repository.
+- Preserve a stable history of BBP-focused changes for future reference.
 
 ## Scope
 
-This fork is intended for BBP-specific work. Changes may include emulator-side
-diagnostics, rendering fixes, framebuffer handling experiments, and performance
-optimizations that are useful for Band Brothers P.
+This fork is intended for BBP-specific work and personal experimentation.
+Changes may include emulator-side diagnostics, rendering fixes, framebuffer
+handling experiments, performance optimizations, and temporary investigation
+code useful for Band Brothers P.
 
-General Azahar changes should still be evaluated against the upstream project:
-
-https://github.com/azahar-emu/azahar
+It is not a general-purpose Azahar distribution and does not try to keep every
+change suitable for upstream submission.
 
 ## Status
 
-This repository is an optimization and publication fork. It may contain
-experimental changes before they are cleaned up for wider use.
+This repository may contain experimental, narrow, or game-specific changes.
+Some patches may later be cleaned up for broader use, but that is not required
+for this fork.
 
-## Upstream
+## Base Project
 
 Azahar is an open-source Nintendo 3DS emulator based on Citra.
 
-Upstream project:
+Base project:
 
 https://github.com/azahar-emu/azahar
 
