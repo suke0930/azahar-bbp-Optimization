@@ -19,6 +19,10 @@
 
 すべての変更を upstream に提出できる形へ整える必要はありません。必要になったものだけ、後から整理して再利用する方針です。
 
+## 開発環境
+
+この fork の調査、実装、整理には Codex、OpenCode、Claude などのエージェント系ツールを利用しています。生成された変更は、手元で確認しながら BBP 向けのパッチとして整理します。
+
 ## ベースプロジェクト
 
 Azahar は Citra をベースにしたオープンソースの Nintendo 3DS エミュレータです。
@@ -60,6 +64,12 @@ code useful for Band Brothers P.
 
 Not every change is expected to be suitable for upstream submission. If a patch
 becomes broadly useful, it can be cleaned up later.
+
+## Development Environment
+
+This fork uses agent-based tools such as Codex, OpenCode, and Claude for
+investigation, implementation, and cleanup. Generated changes are reviewed
+locally and organized as BBP-focused patches.
 
 ## Base Project
 
