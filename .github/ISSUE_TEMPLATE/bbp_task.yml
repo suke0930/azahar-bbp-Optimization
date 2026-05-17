@@ -1,79 +1,80 @@
-name: BBP 作業メモ
-description: バンブラP / BBP 向けの調査、修正、移植、ビルド作業を記録する
+name: BBP 問題メモ
+description: バンブラP / BBP で見えた問題を、まずユーザー視点で記録する
 title: "[BBP] "
 labels: ["bbp"]
 body:
   - type: markdown
     attributes:
       value: |
-        このテンプレートは、BBP / バンブラP 向けの個人用 fork 作業を記録するためのものです。
-        内容は先に brainstorming で固めてから issue 化する想定です。
+        このテンプレートは、BBP / バンブラP で見えた問題をまず記録するためのものです。
+        原因、調査結果、修正計画は本文に詰め込まず、後続コメントで追記します。
 
-  - type: dropdown
-    id: kind
+  - type: textarea
+    id: problem
     attributes:
-      label: 種別
-      description: この issue の主な種類を選んでください。
-      options:
-        - 調査
-        - 実装
-        - パッチ移植
-        - ビルド / リリース
-        - 検証
-        - ドキュメント
+      label: 問題
+      description: エンドユーザー視点で、何が困る問題かを書く。
+      placeholder: ノートレーン上の一部ノートが見えなくなる。判定や音は進むが、画面上のノート表示が欠ける。
     validations:
       required: true
 
   - type: textarea
-    id: goal
+    id: scene
     attributes:
-      label: 目的
-      description: 何を達成したい issue かを短く書く。
-      placeholder: BBP のノート不可視と縦グリッド欠けを、個人 fork 向けの互換 fix として整理する。
-    validations:
-      required: true
-
-  - type: textarea
-    id: background
-    attributes:
-      label: 背景 / 現状
-      description: 症状、調査結果、関連 build、関連ログなど。
+      label: 発生場面
+      description: どの画面、曲、操作、build、設定で見えたか。
       placeholder: |
-        - 症状:
+        - 画面 / モード:
+        - 曲 / セーブ状態:
         - 関連 build:
         - 関連 env:
-        - 既に分かっていること:
     validations:
       required: true
 
   - type: textarea
-    id: tasks
+    id: expected
     attributes:
-      label: 作業内容
-      description: この issue でやること。未確定なら候補でもよい。
-      placeholder: |
-        - [ ] azahar-sorce 側の該当差分を確認する
-        - [ ] fork 側に移植する最小範囲を決める
-        - [ ] ビルドして BBP で確認する
+      label: 期待される表示 / 動作
+      description: 本来どう見える、または動くべきか。
+      placeholder: ノート、縦グリッド、レーン表示が実機相当のタイミングと位置で表示される。
     validations:
       required: true
 
   - type: textarea
-    id: done
+    id: actual
     attributes:
-      label: 完了条件
-      description: 何が満たされれば close できるか。
-      placeholder: |
-        - 対象パッチが fork に入っている
-        - BBP の対象シーンで症状が再発しない
-        - 変更内容と検証結果が記録されている
+      label: 実際の表示 / 動作
+      description: 実際に何が起きたか。見た目の変化を優先して書く。
+      placeholder: 一部のノートが透明になり、右側の縦グリッドも欠ける。曲の進行や判定は続く。
+    validations:
+      required: true
+
+  - type: dropdown
+    id: reproducibility
+    attributes:
+      label: 再現性
+      description: 同じ条件でどれくらい再現するか。
+      options:
+        - 毎回再現する
+        - だいたい再現する
+        - ときどき再現する
+        - まだ不明
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: 影響
+      description: プレイ、表示確認、検証作業にどの程度影響するか。
+      placeholder: ノートが見えないため、譜面確認や通常プレイに支障がある。
     validations:
       required: true
 
   - type: textarea
     id: notes
     attributes:
-      label: メモ
-      description: 関連リンク、注意点、後回しにすることなど。
+      label: 補足
+      description: スクリーンショット、動画、ログ、比較対象、後で見るべきメモなど。
     validations:
       required: false
