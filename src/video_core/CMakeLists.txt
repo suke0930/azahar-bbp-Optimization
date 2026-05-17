@@ -7,6 +7,8 @@ add_library(video_core STATIC EXCLUDE_FROM_ALL
     custom_textures/custom_tex_manager.h
     custom_textures/material.cpp
     custom_textures/material.h
+    bbp_compat.cpp
+    bbp_compat.h
     debug_utils/debug_utils.cpp
     debug_utils/debug_utils.h
     gpu.cpp

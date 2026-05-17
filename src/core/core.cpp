@@ -52,6 +52,7 @@
 #include "core/rpc/server.h"
 #endif
 #include "network/network.h"
+#include "video_core/bbp_compat.h"
 #include "video_core/custom_textures/custom_tex_manager.h"
 #include "video_core/gpu.h"
 #include "video_core/renderer_base.h"
@@ -289,6 +290,7 @@ System::ResultStatus System::SingleStep() {
 
 System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::string& filepath,
                                   Frontend::EmuWindow* secondary_window) {
+    VideoCore::BbpCompat::SetCurrentProgramId(0);
     Settings::ResetTemporaryFrameLimit();
     FileUtil::SetCurrentRomPath(filepath);
     if (early_app_loader) {
@@ -445,6 +447,8 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
         }
     }
     kernel->SetCurrentProcess(process);
+    VideoCore::BbpCompat::SetCurrentProgramId(process && process->codeset ? process->codeset->program_id
+                                                                          : 0);
     title_id = 0;
     if (app_loader->ReadProgramId(title_id) != Loader::ResultStatus::Success) {
         LOG_ERROR(Core, "Failed to find title id for ROM (Error {})",
@@ -694,6 +698,7 @@ void System::Shutdown(bool is_deserializing) {
     is_powered_on = false;
 
     gpu.reset();
+    VideoCore::BbpCompat::SetCurrentProgramId(0);
     if (!is_deserializing) {
         lle_modules.clear();
 #ifdef ENABLE_GDBSTUB
@@ -915,6 +920,7 @@ void System::serialize(Archive& ar, const unsigned int file_version) {
         // savestate was created.
         // TODO(PabloMK7): Find better way to obtain the program ID.
         const u32 thread_id = gsp->GetActiveClientThreadId();
+        bool applied_per_program_settings = false;
         if (thread_id != std::numeric_limits<u32>::max()) {
             const auto thread = kernel->GetThreadByID(thread_id);
             if (thread) {
@@ -922,8 +928,12 @@ void System::serialize(Archive& ar, const unsigned int file_version) {
                 if (process) {
                     gpu->ApplyPerProgramSettings(process->codeset->program_id);
                     gpu->Renderer().Rasterizer()->SwitchDiskResources(process->codeset->program_id);
+                    applied_per_program_settings = true;
                 }
             }
+        }
+        if (!applied_per_program_settings) {
+            VideoCore::BbpCompat::SetCurrentProgramId(0);
         }
     } else {
         u32 cheats_pid = cheat_engine.GetConnectedPID();
