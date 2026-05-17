@@ -14,6 +14,7 @@
 #include "common/settings.h"
 #include "core/memory.h"
 #include "video_core/custom_textures/custom_tex_manager.h"
+#include "video_core/bbp_compat.h"
 #include "video_core/pica/regs_external.h"
 #include "video_core/pica/regs_internal.h"
 #include "video_core/rasterizer_cache/rasterizer_cache_base.h"
@@ -999,6 +1000,14 @@ void RasterizerCache<T>::ValidateSurface(SurfaceId surface_id, PAddr addr, u32 s
         // that can can be reinterpreted to the requested format.
         if (ValidateByReinterpretation(surface, params, interval)) {
             notify_validated(interval);
+            continue;
+        }
+
+        if (BbpCompat::IsCurrentBandBrothersP() &&
+            BbpCompat::ShouldSkipGuardedNoteFramebufferUpload(
+                surface.addr, surface.size, surface.pixel_format == PixelFormat::RGBA4,
+                params.addr, params.size)) {
+            notify_validated(params.GetInterval());
             continue;
         }
 

@@ -6,6 +6,7 @@
 
 #include "common/hash.h"
 #include "common/math_util.h"
+#include "video_core/bbp_compat.h"
 #include "video_core/pica/regs_rasterizer.h"
 #include "video_core/rasterizer_cache/slot_id.h"
 #include "video_core/rasterizer_cache/surface_params.h"
@@ -75,6 +76,12 @@ public:
         Common::Rectangle viewport_rect = regs.GetViewportRect();
         if (flip_rect) {
             viewport_rect = viewport_rect.VerticalMirror(height);
+        }
+
+        if (BbpCompat::IsCurrentBandBrothersP() && fb->color_id) {
+            const auto& surface = res_cache->GetSurface(fb->color_id);
+            (void)BbpCompat::AdjustWrappedNegativeXViewport(surface.addr, surface.width,
+                                                            surface.height, viewport_rect);
         }
 
         draw_rect.left =
