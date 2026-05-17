@@ -696,13 +696,7 @@ FramebufferHelper<T> RasterizerCache<T>::GetFramebufferSurfaces(bool using_color
 
     const s32 framebuffer_width = config.GetWidth();
     const s32 framebuffer_height = config.GetHeight();
-    const auto viewport_rect = regs.rasterizer.GetViewportRect();
-    const Common::Rectangle<u32> viewport_clamped = {
-        static_cast<u32>(std::clamp(viewport_rect.left, 0, framebuffer_width)),
-        static_cast<u32>(std::clamp(viewport_rect.top, 0, framebuffer_height)),
-        static_cast<u32>(std::clamp(viewport_rect.right, 0, framebuffer_width)),
-        static_cast<u32>(std::clamp(viewport_rect.bottom, 0, framebuffer_height)),
-    };
+    auto viewport_rect = regs.rasterizer.GetViewportRect();
 
     SurfaceParams color_params;
     color_params.is_tiled = true;
@@ -714,6 +708,18 @@ FramebufferHelper<T> RasterizerCache<T>::GetFramebufferSurfaces(bool using_color
     color_params.addr = config.GetColorBufferPhysicalAddress();
     color_params.pixel_format = PixelFormatFromColorFormat(config.color_format);
     color_params.UpdateParams();
+
+    if (using_color_fb) {
+        (void)BbpCompat::AdjustCurrentWrappedNegativeXViewport(
+            color_params.addr, color_params.width, color_params.height, viewport_rect);
+    }
+
+    const Common::Rectangle<u32> viewport_clamped = {
+        static_cast<u32>(std::clamp(viewport_rect.left, 0, framebuffer_width)),
+        static_cast<u32>(std::clamp(viewport_rect.top, 0, framebuffer_height)),
+        static_cast<u32>(std::clamp(viewport_rect.right, 0, framebuffer_width)),
+        static_cast<u32>(std::clamp(viewport_rect.bottom, 0, framebuffer_height)),
+    };
 
     depth_params.addr = config.GetDepthBufferPhysicalAddress();
     depth_params.pixel_format = PixelFormatFromDepthFormat(config.depth_format);
@@ -1003,10 +1009,10 @@ void RasterizerCache<T>::ValidateSurface(SurfaceId surface_id, PAddr addr, u32 s
             continue;
         }
 
-        if (BbpCompat::IsCurrentBandBrothersP() &&
-            BbpCompat::ShouldSkipGuardedNoteFramebufferUpload(
+        if (BbpCompat::ShouldSkipGuardedNoteFramebufferUpload(
                 surface.addr, surface.size, surface.pixel_format == PixelFormat::RGBA4,
-                params.addr, params.size)) {
+                params.addr, params.size) &&
+            BbpCompat::IsCurrentBandBrothersP()) {
             notify_validated(params.GetInterval());
             continue;
         }

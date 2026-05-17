@@ -13,6 +13,8 @@ namespace VideoCore::BbpCompat {
     return program_id == 0x00040000000A0B00 || program_id == 0x0004000E000A0B00;
 }
 
+void SetCurrentProgramId(u64 program_id);
+
 [[nodiscard]] bool IsCurrentBandBrothersP();
 
 [[nodiscard]] constexpr bool RangeOverlaps(PAddr addr, u32 size, PAddr target_addr,
@@ -61,11 +63,16 @@ namespace VideoCore::BbpCompat {
            (height == 8 || height == 64);
 }
 
+[[nodiscard]] constexpr bool CanAdjustWrappedNegativeXViewport(
+    PAddr surface_addr, u32 width, u32 height, const Common::Rectangle<s32>& viewport) {
+    return IsWrappedNegativeXSurface(surface_addr, width, height) && viewport.right <= 0 &&
+           viewport.left > -static_cast<s32>(width);
+}
+
 [[nodiscard]] constexpr bool AdjustWrappedNegativeXViewport(PAddr surface_addr, u32 width,
                                                             u32 height,
                                                             Common::Rectangle<s32>& viewport) {
-    if (!IsWrappedNegativeXSurface(surface_addr, width, height) || viewport.right > 0 ||
-        viewport.left <= -static_cast<s32>(width)) {
+    if (!CanAdjustWrappedNegativeXViewport(surface_addr, width, height, viewport)) {
         return false;
     }
 
@@ -73,5 +80,8 @@ namespace VideoCore::BbpCompat {
     viewport.right += static_cast<s32>(width);
     return true;
 }
+
+[[nodiscard]] bool AdjustCurrentWrappedNegativeXViewport(PAddr surface_addr, u32 width, u32 height,
+                                                         Common::Rectangle<s32>& viewport);
 
 } // namespace VideoCore::BbpCompat

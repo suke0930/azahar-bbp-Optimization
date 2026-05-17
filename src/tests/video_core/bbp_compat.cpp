@@ -12,6 +12,17 @@ TEST_CASE("BBP compatibility only matches Band Brothers P program IDs", "[video_
     REQUIRE_FALSE(VideoCore::BbpCompat::IsBandBrothersPProgramId(0x00040000000A0B01));
 }
 
+TEST_CASE("BBP compatibility caches the current program ID", "[video_core][bbp]") {
+    VideoCore::BbpCompat::SetCurrentProgramId(0);
+    REQUIRE_FALSE(VideoCore::BbpCompat::IsCurrentBandBrothersP());
+
+    VideoCore::BbpCompat::SetCurrentProgramId(0x00040000000A0B00);
+    REQUIRE(VideoCore::BbpCompat::IsCurrentBandBrothersP());
+
+    VideoCore::BbpCompat::SetCurrentProgramId(0x00040000000A0B01);
+    REQUIRE_FALSE(VideoCore::BbpCompat::IsCurrentBandBrothersP());
+}
+
 TEST_CASE("BBP compatibility wraps only narrow negative 1024-wide strip viewports",
           "[video_core][bbp]") {
     Common::Rectangle<s32> viewport{-112, 0, -38, 8};
@@ -34,6 +45,32 @@ TEST_CASE("BBP compatibility wraps only narrow negative 1024-wide strip viewport
     Common::Rectangle<s32> wrong_width{-112, 0, -38, 8};
     REQUIRE_FALSE(
         VideoCore::BbpCompat::AdjustWrappedNegativeXViewport(0x18560880, 512, 8, wrong_width));
+}
+
+TEST_CASE("BBP current-title viewport wrapping checks cheap predicates before title state",
+          "[video_core][bbp]") {
+    VideoCore::BbpCompat::SetCurrentProgramId(0x00040000000A0B00);
+
+    Common::Rectangle<s32> positive{304, 0, 378, 8};
+    REQUIRE_FALSE(VideoCore::BbpCompat::AdjustCurrentWrappedNegativeXViewport(
+        0x18560880, 1024, 8, positive));
+    REQUIRE(positive.left == 304);
+    REQUIRE(positive.right == 378);
+
+    VideoCore::BbpCompat::SetCurrentProgramId(0);
+    Common::Rectangle<s32> viewport{-112, 0, -38, 8};
+    REQUIRE_FALSE(VideoCore::BbpCompat::AdjustCurrentWrappedNegativeXViewport(
+        0x18560880, 1024, 8, viewport));
+    REQUIRE(viewport.left == -112);
+    REQUIRE(viewport.right == -38);
+
+    VideoCore::BbpCompat::SetCurrentProgramId(0x0004000E000A0B00);
+    REQUIRE(VideoCore::BbpCompat::AdjustCurrentWrappedNegativeXViewport(0x18560880, 1024, 8,
+                                                                        viewport));
+    REQUIRE(viewport.left == 912);
+    REQUIRE(viewport.right == 986);
+
+    VideoCore::BbpCompat::SetCurrentProgramId(0);
 }
 
 TEST_CASE("BBP compatibility skips only known stale note framebuffer uploads",

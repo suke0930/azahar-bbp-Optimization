@@ -78,10 +78,10 @@ public:
             viewport_rect = viewport_rect.VerticalMirror(height);
         }
 
-        if (BbpCompat::IsCurrentBandBrothersP() && fb->color_id) {
+        if (fb->color_id) {
             const auto& surface = res_cache->GetSurface(fb->color_id);
-            (void)BbpCompat::AdjustWrappedNegativeXViewport(surface.addr, surface.width,
-                                                            surface.height, viewport_rect);
+            (void)BbpCompat::AdjustCurrentWrappedNegativeXViewport(
+                surface.addr, surface.width, surface.height, viewport_rect);
         }
 
         draw_rect.left =
