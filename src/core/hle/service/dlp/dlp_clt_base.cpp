@@ -446,7 +446,7 @@ void DLP_Clt_Base::GetNodeInfo(Kernel::HLERequestContext& ctx) {
 
     auto node_info = GetUDS()->GetNodeInformationHLE(network_node_id);
     if (!node_info) {
-        LOG_ERROR(Service_DLP, "Could not get node info for network node id 0x{:x}",
+        LOG_DEBUG(Service_DLP, "Could not get node info for network node id 0x{:x}",
                   network_node_id);
         IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
         rb.Push(Result(ErrorDescription::NoData, ErrorModule::DLP, ErrorSummary::NotFound,

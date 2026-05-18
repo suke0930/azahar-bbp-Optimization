@@ -450,7 +450,7 @@ void DLP_SRVR::GetClientInfo(Kernel::HLERequestContext& ctx) {
 
     auto node_info = GetUDS()->GetNodeInformationHLE(node_id);
     if (!node_info) {
-        LOG_ERROR(Service_DLP, "Could not get node info for network node id 0x{:x}", node_id);
+        LOG_DEBUG(Service_DLP, "Could not get node info for network node id 0x{:x}", node_id);
         IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
         rb.Push(Result(ErrorDescription::NoData, ErrorModule::DLP, ErrorSummary::NotFound,
                        ErrorLevel::Status));
