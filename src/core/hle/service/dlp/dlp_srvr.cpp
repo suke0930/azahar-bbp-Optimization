@@ -507,7 +507,7 @@ void DLP_SRVR::StartDistribution(Kernel::HLERequestContext& ctx) {
     // when StartDistribution is called, the real
     // DLP_SRVR doesn't stop its broadcast thread
     // we do because we're better. we're stronger.
-    std::scoped_lock lock{srvr_state_mutex, broadcast_mutex};
+    std::scoped_lock lock{client_states_mutex, srvr_state_mutex, broadcast_mutex};
 
     is_broadcasting = false;
     is_distributing = true;
