@@ -78,8 +78,14 @@ void DLP_Base::InitializeDlpBase(u32 shared_mem_size,
                                 "NWM::UDS:SharedMemory")
             .Unwrap();
 
+    u64 friend_code_seed = HW::UniqueData::GetLocalFriendCodeSeedB().body.friend_code_seed;
+    if (friend_code_seed == 0) {
+        const auto mac_address = GetUDS()->GetMacAddress();
+        memcpy(&friend_code_seed, mac_address.data(), mac_address.size());
+    }
+
     NWM::NodeInfo cnode_info{
-        .friend_code_seed = HW::UniqueData::GetLocalFriendCodeSeedB().body.friend_code_seed,
+        .friend_code_seed = friend_code_seed,
         .username = uname,
     };
     GetUDS()->Initialize(uds_sharedmem_size, cnode_info, uds_version, uds_sharedmem);

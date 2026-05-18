@@ -2,14 +2,20 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
+#include <optional>
+#include <vector>
+
 #include "common/archives.h"
 #include "common/common_types.h"
 #include "common/logging/log.h"
 #include "common/string_util.h"
 #include "core/core.h"
-#include "core/file_sys/archive_ncch.h"
+#include "core/file_sys/ncch_container.h"
+#include "core/file_sys/romfs_reader.h"
 #include "core/hle/ipc_helpers.h"
 #include "core/hle/kernel/event.h"
+#include "core/hle/kernel/process.h"
 #include "core/hle/kernel/shared_memory.h"
 #include "core/hle/result.h"
 #include "core/hle/romfs.h"
@@ -21,6 +27,79 @@
 SERIALIZE_EXPORT_IMPL(Service::DLP::DLP_SRVR)
 
 namespace Service::DLP {
+
+namespace {
+
+struct DlpContentCandidate {
+    FS::ProgramInfo info;
+};
+
+void AddDlpContentCandidate(std::vector<DlpContentCandidate>& candidates, u64 program_id,
+                            FS::MediaType media_type) {
+    for (const auto& candidate : candidates) {
+        if (candidate.info.program_id == program_id && candidate.info.media_type == media_type) {
+            return;
+        }
+    }
+
+    candidates.push_back({FS::ProgramInfo{program_id, media_type}});
+}
+
+void AddDlpContentCandidatesForTitle(std::vector<DlpContentCandidate>& candidates, u64 program_id,
+                                     std::optional<FS::MediaType> preferred_media_type) {
+    if (preferred_media_type) {
+        AddDlpContentCandidate(candidates, program_id, *preferred_media_type);
+    }
+
+    AddDlpContentCandidate(candidates, program_id, FS::MediaType::SDMC);
+    AddDlpContentCandidate(candidates, program_id, FS::MediaType::NAND);
+    AddDlpContentCandidate(candidates, program_id, FS::MediaType::GameCard);
+}
+
+ResultVal<u16> GetDlpSpecialContentIndex(const std::shared_ptr<FS::FS_USER>& fs,
+                                         const FS::ProgramInfo& info) {
+    if (info.media_type == FS::MediaType::GameCard) {
+        return fs->GetSpecialContentIndexFromGameCard(info.program_id,
+                                                      FS::SpecialContentType::DLPChild);
+    }
+
+    return fs->GetSpecialContentIndexFromTMD(info.media_type, info.program_id,
+                                             FS::SpecialContentType::DLPChild);
+}
+
+std::vector<u8> ReadDlpRomFSDirectly(const FS::ProgramInfo& info, u16 content_index) {
+    std::vector<std::pair<u64, bool>> path_candidates;
+    const u64 update_program_id = AM::GetTitleUpdateId(info.program_id);
+    path_candidates.emplace_back(update_program_id, false);
+    path_candidates.emplace_back(update_program_id, true);
+    path_candidates.emplace_back(info.program_id, false);
+    path_candidates.emplace_back(info.program_id, true);
+
+    std::vector<std::string> tried_paths;
+    for (const auto& [program_id, update] : path_candidates) {
+        const auto path =
+            AM::GetTitleContentPath(info.media_type, program_id, content_index, update);
+        if (path.empty() ||
+            std::find(tried_paths.begin(), tried_paths.end(), path) != tried_paths.end()) {
+            continue;
+        }
+        tried_paths.push_back(path);
+
+        std::shared_ptr<FileSys::RomFSReader> romfs;
+        FileSys::NCCHContainer container(path, 0, content_index);
+        if (container.ReadRomFS(romfs) != Loader::ResultStatus::Success || !romfs) {
+            continue;
+        }
+
+        std::vector<u8> romfs_buffer(romfs->GetSize());
+        romfs->ReadFile(0, romfs_buffer.size(), romfs_buffer.data());
+        return romfs_buffer;
+    }
+
+    return {};
+}
+
+} // namespace
 
 std::shared_ptr<Kernel::SessionRequestHandler> DLP_SRVR::GetServiceFrameworkSharedPtr() {
     return shared_from_this();
@@ -72,56 +151,64 @@ bool DLP_SRVR::CacheContentFileInMemory(u32 process_id) {
         return false;
     }
 
-    auto title_info = fs->GetProgramLaunchInfo(process_id);
+    std::vector<DlpContentCandidate> candidates;
 
-    // get special content index. could have made a new
-    // HLE func in FS, but this is so small that it
-    // doesn't matter
-    ResultVal<u16> index;
-    if (title_info->media_type == FS::MediaType::GameCard) {
-        index = fs->GetSpecialContentIndexFromGameCard(title_info->program_id,
-                                                       FS::SpecialContentType::DLPChild);
+    auto title_info_result = fs->GetProgramLaunchInfo(process_id);
+    if (title_info_result) {
+        const auto title_info = *title_info_result;
+        AddDlpContentCandidate(candidates, title_info.program_id, title_info.media_type);
+        AddDlpContentCandidate(candidates, AM::GetTitleUpdateId(title_info.program_id),
+                               title_info.media_type);
     } else {
-        index = fs->GetSpecialContentIndexFromTMD(title_info->media_type, title_info->program_id,
-                                                  FS::SpecialContentType::DLPChild);
+        LOG_WARNING(Service_DLP,
+                    "Could not determine program launch info for process id 0x{:08x}: 0x{:08x}",
+                    process_id, title_info_result.Code().raw);
     }
 
-    if (!index) {
-        LOG_ERROR(Service_DLP, "Could not get special content index from program id 0x{:x}",
-                  title_info->program_id);
+    auto process = system.Kernel().GetProcessById(process_id);
+    if (process && process->codeset) {
+        const u64 codeset_program_id = process->codeset->program_id;
+        AddDlpContentCandidatesForTitle(candidates, codeset_program_id, std::nullopt);
+        AddDlpContentCandidatesForTitle(candidates, AM::GetTitleUpdateId(codeset_program_id),
+                                        std::nullopt);
+    }
+
+    std::optional<DlpContentCandidate> selected_candidate;
+    ResultVal<u16> index;
+    for (const auto& candidate : candidates) {
+        auto candidate_index = GetDlpSpecialContentIndex(fs, candidate.info);
+        if (candidate_index) {
+            selected_candidate = candidate;
+            index = candidate_index;
+            break;
+        }
+    }
+
+    if (!selected_candidate || !index) {
+        LOG_ERROR(Service_DLP,
+                  "Could not get special content index for DLP child (process_id=0x{:08x})",
+                  process_id);
         return false;
     }
 
-    // read as ncch to find the content
-    FileSys::NCCHArchive container(title_info->program_id, title_info->media_type);
-
-    std::array<char, 8> exefs_filepath{};
-    FileSys::Path file_path =
-        FileSys::MakeNCCHFilePath(FileSys::NCCHFileOpenType::NCCHData, *index,
-                                  FileSys::NCCHFilePathType::RomFS, exefs_filepath);
-    FileSys::Mode open_mode = {};
-    open_mode.read_flag.Assign(1);
-    const u32 open_attributes_none = 0;
-    auto file_result = container.OpenFile(file_path, open_mode, open_attributes_none);
-
-    if (file_result.Failed()) {
+    const auto title_info = selected_candidate->info;
+    std::vector<u8> romfs_buffer = ReadDlpRomFSDirectly(title_info, *index);
+    if (romfs_buffer.empty()) {
         LOG_ERROR(Service_DLP, "Could not open DLP child archive");
         return false;
     }
 
-    auto romfs = std::move(file_result).Unwrap();
-
-    std::vector<u8> romfs_buffer(romfs->GetSize());
-    romfs->Read(0, romfs_buffer.size(), romfs_buffer.data());
-    romfs->Close();
-
-    u64 dlp_child_tid = (title_info->program_id & 0xFFFFFFFF) | DLP_CHILD_TID_HIGH;
-    auto filename = fmt::format("{:016x}.cia", dlp_child_tid);
-
-    LOG_INFO(Service_DLP, "Loading romfs file: {}", filename.c_str());
-
-    const RomFS::RomFSFile child_file =
-        RomFS::GetFile(romfs_buffer.data(), {Common::UTF8ToUTF16(filename)});
+    const u64 base_child_tid = (title_info.program_id & 0xFFFFFFFF) | DLP_CHILD_TID_HIGH;
+    u64 dlp_child_tid = 0;
+    RomFS::RomFSFile child_file;
+    for (const u64 candidate_child_tid : {base_child_tid, base_child_tid + 1}) {
+        auto filename = fmt::format("{:016x}.cia", candidate_child_tid);
+        child_file = RomFS::GetFile(romfs_buffer.data(), {Common::UTF8ToUTF16(filename)});
+        if (child_file.Length()) {
+            dlp_child_tid = candidate_child_tid;
+            break;
+        }
+    }
 
     if (!child_file.Length()) {
         LOG_ERROR(Service_DLP, "DLP child is missing from archive");
@@ -135,6 +222,11 @@ bool DLP_SRVR::CacheContentFileInMemory(u32 process_id) {
     if (cia_container.Load(distribution_content) != Loader::ResultStatus::Success) {
         LOG_ERROR(Service_DLP, "Could not load DLP child header");
         return false;
+    }
+
+    const u64 cia_title_id = cia_container.GetTitleMetadata().GetTitleID();
+    if (cia_title_id != dlp_child_tid) {
+        dlp_child_tid = cia_title_id;
     }
 
     const auto& smdh = cia_container.GetSMDH();
@@ -161,7 +253,11 @@ bool DLP_SRVR::CacheContentFileInMemory(u32 process_id) {
     memcpy(title_broadcast_info.title_short.data(), t_short.data(), t_short.size());
     memcpy(title_broadcast_info.title_long.data(), t_long.data(), t_long.size());
 
-    LOG_INFO(Service_DLP, "Successfully cached DLP child content");
+    LOG_INFO(Service_DLP,
+             "Successfully cached DLP child content title_id=0x{:016x} title_size={} "
+             "transfer_size={}",
+             title_broadcast_info.title_id, title_broadcast_info.title_size,
+             title_broadcast_info.transfer_size);
 
     return true;
 }
