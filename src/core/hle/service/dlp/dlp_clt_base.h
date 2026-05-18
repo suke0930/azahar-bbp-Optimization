@@ -69,7 +69,7 @@ protected:
                             ///< beacons until at least one tinfo buf element is cleared
     bool is_scanning = false;
     constexpr static inline int beacon_scan_interval_ms = 1000;
-    constexpr static inline u32 dlp_poll_rate_distribute = 0;
+    constexpr static inline u32 dlp_poll_rate_distribute = 1;
     std::vector<std::pair<DLPTitleInfo, DLPServerInfo>> scanned_title_info;
     std::map<Network::MacAddress, std::pair<DLPTitleInfo, DLPServerInfo>> parsed_scan_cache;
     std::map<Network::MacAddress, bool>

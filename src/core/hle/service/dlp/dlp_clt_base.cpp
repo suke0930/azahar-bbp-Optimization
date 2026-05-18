@@ -4,6 +4,9 @@
 
 #include "dlp_clt_base.h"
 
+#include <chrono>
+#include <thread>
+
 #include "common/alignment.h"
 #include "common/string_util.h"
 #include "common/timer.h"
@@ -592,6 +595,8 @@ void DLP_Clt_Base::CacheBeaconTitleInfo(Network::WifiPacket& beacon) {
                 }
                 break; // we got all 5!
             }
+        } else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
 
