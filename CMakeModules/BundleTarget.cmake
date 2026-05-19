@@ -274,6 +274,12 @@ else()
             TARGET bundle
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/dist/scripting" "${CMAKE_BINARY_DIR}/bundle/scripting"
             POST_BUILD)
+        if (WIN32)
+            add_custom_command(
+                TARGET bundle
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/dist/azahar-vulkan-validation.cmd" "${CMAKE_BINARY_DIR}/bundle/azahar-vulkan-validation.cmd"
+                POST_BUILD)
+        endif()
 
         # On Linux, add a command to prepare linuxdeploy and any required plugins before any bundling occurs.
         if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
