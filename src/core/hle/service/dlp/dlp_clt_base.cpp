@@ -291,7 +291,8 @@ void DLP_Clt_Base::DeleteScanInfo(Kernel::HLERequestContext& ctx) {
         !ignore_servers_list[mac_addr] && !TitleInfoIsCached(mac_addr)) {
         const auto restore_idx = std::min<size_t>(idx, scanned_title_info.size());
         scanned_title_info.insert(scanned_title_info.begin() + restore_idx, restore_scan_info);
-        title_info_index = std::min<u32>(next_title_info_index, scanned_title_info.size());
+        title_info_index =
+            std::min<u32>(next_title_info_index, static_cast<u32>(scanned_title_info.size() - 1));
     }
 
     IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
