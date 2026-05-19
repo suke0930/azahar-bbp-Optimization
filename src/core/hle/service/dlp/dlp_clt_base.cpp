@@ -5,6 +5,7 @@
 #include "dlp_clt_base.h"
 
 #include <chrono>
+#include <optional>
 #include <thread>
 
 #include "common/alignment.h"
@@ -15,6 +16,27 @@
 #include "core/hle/service/nwm/uds_beacon.h"
 
 namespace Service::DLP {
+
+namespace {
+
+std::optional<size_t> GetExpectedBroadcastPacketSize(u8 packet_index) {
+    switch (packet_index) {
+    case 0:
+        return sizeof(DLPBroadcastPacket1);
+    case 1:
+        return sizeof(DLPBroadcastPacket2);
+    case 2:
+        return sizeof(DLPBroadcastPacket3);
+    case 3:
+        return sizeof(DLPBroadcastPacket4);
+    case 4:
+        return sizeof(DLPBroadcastPacket5);
+    default:
+        return std::nullopt;
+    }
+}
+
+} // namespace
 
 DLP_Clt_Base::DLP_Clt_Base(Core::System& s, std::string unique_string_id) : DLP_Base(s) {
     std::string unique_scan_event_id = fmt::format("DLP::{}::BeaconScanCallback", unique_string_id);
@@ -238,7 +260,7 @@ void DLP_Clt_Base::DeleteScanInfo(Kernel::HLERequestContext& ctx) {
 
     auto mac_addr = rp.PopRaw<Network::MacAddress>();
 
-    std::scoped_lock lock(title_info_mutex);
+    std::scoped_lock lock{title_info_mutex, beacon_mutex};
 
     if (!TitleInfoIsCached(mac_addr)) {
         IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
@@ -257,6 +279,7 @@ void DLP_Clt_Base::DeleteScanInfo(Kernel::HLERequestContext& ctx) {
         return false;
     }();
 
+    const u32 next_title_info_index = title_info_index;
     scanned_title_info.erase(scanned_title_info.begin() + idx);
 
     if (title_info_index > static_cast<u32>(idx)) {
@@ -268,7 +291,7 @@ void DLP_Clt_Base::DeleteScanInfo(Kernel::HLERequestContext& ctx) {
         !ignore_servers_list[mac_addr] && !TitleInfoIsCached(mac_addr)) {
         const auto restore_idx = std::min<size_t>(idx, scanned_title_info.size());
         scanned_title_info.insert(scanned_title_info.begin() + restore_idx, restore_scan_info);
-        title_info_index = static_cast<u32>(restore_idx);
+        title_info_index = std::min<u32>(next_title_info_index, scanned_title_info.size());
     }
 
     IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
@@ -585,6 +608,17 @@ void DLP_Clt_Base::CacheBeaconTitleInfo(Network::WifiPacket& beacon) {
                 ignore_servers_list[beacon.transmitter_address] = true;
                 break; // corrupted info
             }
+
+            const auto expected_packet_size = GetExpectedBroadcastPacketSize(p_head->packet_index);
+            if (!expected_packet_size || static_cast<size_t>(sz) < *expected_packet_size) {
+                LOG_ERROR(Service_DLP,
+                          "Broadcast packet {} is too small: got {}, expected at least {}",
+                          p_head->packet_index, sz,
+                          expected_packet_size.value_or(sizeof(DLPPacketHeader)));
+                ignore_servers_list[beacon.transmitter_address] = true;
+                break; // corrupted info
+            }
+
             got_broadcast_packet[p_head->packet_index] = true;
             broadcast_packet_idx_buf[p_head->packet_index] = recv_buf;
             if (got_broadcast_packet.size() == num_broadcast_packets) {

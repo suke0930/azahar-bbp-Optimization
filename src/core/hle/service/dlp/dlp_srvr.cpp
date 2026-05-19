@@ -8,7 +8,9 @@
 
 #include "common/archives.h"
 #include "common/common_types.h"
+#include "common/file_util.h"
 #include "common/logging/log.h"
+#include "common/settings.h"
 #include "common/string_util.h"
 #include "core/core.h"
 #include "core/file_sys/ncch_container.h"
@@ -53,7 +55,9 @@ void AddDlpContentCandidatesForTitle(std::vector<DlpContentCandidate>& candidate
 
     AddDlpContentCandidate(candidates, program_id, FS::MediaType::SDMC);
     AddDlpContentCandidate(candidates, program_id, FS::MediaType::NAND);
-    AddDlpContentCandidate(candidates, program_id, FS::MediaType::GameCard);
+    if (preferred_media_type == FS::MediaType::GameCard) {
+        AddDlpContentCandidate(candidates, program_id, FS::MediaType::GameCard);
+    }
 }
 
 ResultVal<u16> GetDlpSpecialContentIndex(const std::shared_ptr<FS::FS_USER>& fs,
@@ -70,10 +74,18 @@ ResultVal<u16> GetDlpSpecialContentIndex(const std::shared_ptr<FS::FS_USER>& fs,
 std::vector<u8> ReadDlpRomFSDirectly(const FS::ProgramInfo& info, u16 content_index) {
     std::vector<std::pair<u64, bool>> path_candidates;
     const u64 update_program_id = AM::GetTitleUpdateId(info.program_id);
-    path_candidates.emplace_back(update_program_id, false);
-    path_candidates.emplace_back(update_program_id, true);
-    path_candidates.emplace_back(info.program_id, false);
-    path_candidates.emplace_back(info.program_id, true);
+
+    const auto add_path_candidate = [&](u64 program_id, bool update) {
+        if (info.media_type != FS::MediaType::GameCard && Settings::values.is_new_3ds) {
+            path_candidates.emplace_back(program_id | 0x20000000, update);
+        }
+        path_candidates.emplace_back(program_id, update);
+    };
+
+    add_path_candidate(update_program_id, false);
+    add_path_candidate(update_program_id, true);
+    add_path_candidate(info.program_id, false);
+    add_path_candidate(info.program_id, true);
 
     std::vector<std::string> tried_paths;
     for (const auto& [program_id, update] : path_candidates) {
@@ -84,6 +96,9 @@ std::vector<u8> ReadDlpRomFSDirectly(const FS::ProgramInfo& info, u16 content_in
             continue;
         }
         tried_paths.push_back(path);
+        if (info.media_type != FS::MediaType::GameCard && !FileUtil::Exists(path)) {
+            continue;
+        }
 
         std::shared_ptr<FileSys::RomFSReader> romfs;
         FileSys::NCCHContainer container(path, 0, content_index);
