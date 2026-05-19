@@ -926,7 +926,7 @@ bool DLP_Clt_Base::NeedsContentDownload(Network::MacAddress mac_addr) {
         return false;
     }
     auto tinfo = scanned_title_info[GetCachedTitleInfoIdx(mac_addr)].first;
-    u64 title_id = DLP_CHILD_TID_HIGH | (tinfo.unique_id << 8);
+    u64 title_id = DLP_CHILD_TID_HIGH | (tinfo.unique_id << 8) | tinfo.variation;
     return !FileUtil::Exists(AM::GetTitleContentPath(FS::MediaType::NAND, title_id));
 }
 

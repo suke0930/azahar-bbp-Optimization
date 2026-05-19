@@ -100,11 +100,10 @@ std::vector<u8> ReadDlpRomFSDirectly(const FS::ProgramInfo& info, u16 content_in
             continue;
         }
 
-        std::shared_ptr<FileSys::RomFSReader> romfs;
-        FileSys::NCCHContainer container(path, 0, content_index);
         if (info.media_type == FS::MediaType::GameCard) {
+            FileSys::NCCHContainer parent_container(path);
             u64 card_program_id = 0;
-            if (container.ReadProgramId(card_program_id) != Loader::ResultStatus::Success ||
+            if (parent_container.ReadProgramId(card_program_id) != Loader::ResultStatus::Success ||
                 card_program_id != info.program_id) {
                 LOG_WARNING(Service_DLP,
                             "Skipping GameCard DLP child candidate with mismatched program id "
@@ -113,6 +112,9 @@ std::vector<u8> ReadDlpRomFSDirectly(const FS::ProgramInfo& info, u16 content_in
                 continue;
             }
         }
+
+        std::shared_ptr<FileSys::RomFSReader> romfs;
+        FileSys::NCCHContainer container(path, 0, content_index);
         if (container.ReadRomFS(romfs) != Loader::ResultStatus::Success || !romfs) {
             continue;
         }
