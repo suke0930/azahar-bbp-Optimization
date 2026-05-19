@@ -4,6 +4,10 @@
 
 #include "dlp_clt_base.h"
 
+#include <chrono>
+#include <optional>
+#include <thread>
+
 #include "common/alignment.h"
 #include "common/string_util.h"
 #include "common/timer.h"
@@ -12,6 +16,27 @@
 #include "core/hle/service/nwm/uds_beacon.h"
 
 namespace Service::DLP {
+
+namespace {
+
+std::optional<size_t> GetExpectedBroadcastPacketSize(u8 packet_index) {
+    switch (packet_index) {
+    case 0:
+        return sizeof(DLPBroadcastPacket1);
+    case 1:
+        return sizeof(DLPBroadcastPacket2);
+    case 2:
+        return sizeof(DLPBroadcastPacket3);
+    case 3:
+        return sizeof(DLPBroadcastPacket4);
+    case 4:
+        return sizeof(DLPBroadcastPacket5);
+    default:
+        return std::nullopt;
+    }
+}
+
+} // namespace
 
 DLP_Clt_Base::DLP_Clt_Base(Core::System& s, std::string unique_string_id) : DLP_Base(s) {
     std::string unique_scan_event_id = fmt::format("DLP::{}::BeaconScanCallback", unique_string_id);
@@ -46,7 +71,16 @@ void DLP_Clt_Base::InitializeCltBase(u32 shared_mem_size, u32 max_beacons, u32 c
 }
 
 void DLP_Clt_Base::FinalizeCltBase() {
-    clt_state = DLP_Clt_State::Initialized;
+    {
+        std::scoped_lock lock{beacon_mutex, title_info_mutex, clt_state_mutex};
+        is_scanning = false;
+        clt_state = DLP_Clt_State::Initialized;
+        scanned_title_info.clear();
+        parsed_scan_cache.clear();
+        ignore_servers_list.clear();
+        title_info_index = 0;
+        system.CoreTiming().UnscheduleEvent(beacon_scan_event, 0);
+    }
 
     if (is_connected) {
         DisconnectFromServer();
@@ -132,6 +166,7 @@ void DLP_Clt_Base::StartScan(Kernel::HLERequestContext& ctx) {
 
     // reset scan dependent variables
     scanned_title_info.clear();
+    parsed_scan_cache.clear();
     ignore_servers_list.clear();
     title_info_index = 0;
 
@@ -223,11 +258,9 @@ void DLP_Clt_Base::GetTitleInfoInOrder(Kernel::HLERequestContext& ctx) {
 void DLP_Clt_Base::DeleteScanInfo(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp(ctx);
 
-    LOG_INFO(Service_DLP, "Called");
-
     auto mac_addr = rp.PopRaw<Network::MacAddress>();
 
-    std::scoped_lock lock(title_info_mutex);
+    std::scoped_lock lock{title_info_mutex, beacon_mutex};
 
     if (!TitleInfoIsCached(mac_addr)) {
         IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
@@ -236,7 +269,31 @@ void DLP_Clt_Base::DeleteScanInfo(Kernel::HLERequestContext& ctx) {
         return;
     }
 
-    scanned_title_info.erase(scanned_title_info.begin() + GetCachedTitleInfoIdx(mac_addr));
+    const auto idx = GetCachedTitleInfoIdx(mac_addr);
+    std::pair<DLPTitleInfo, DLPServerInfo> restore_scan_info;
+    const bool can_restore_scan_info = [&] {
+        if (auto parsed = parsed_scan_cache.find(mac_addr); parsed != parsed_scan_cache.end()) {
+            restore_scan_info = parsed->second;
+            return true;
+        }
+        return false;
+    }();
+
+    const u32 next_title_info_index = title_info_index;
+    scanned_title_info.erase(scanned_title_info.begin() + idx);
+
+    if (title_info_index > static_cast<u32>(idx)) {
+        --title_info_index;
+    }
+    title_info_index = std::min<u32>(title_info_index, scanned_title_info.size());
+
+    if (is_scanning && can_restore_scan_info && scanned_title_info.size() < max_title_info &&
+        !ignore_servers_list[mac_addr] && !TitleInfoIsCached(mac_addr)) {
+        const auto restore_idx = std::min<size_t>(idx, scanned_title_info.size());
+        scanned_title_info.insert(scanned_title_info.begin() + restore_idx, restore_scan_info);
+        title_info_index =
+            std::min<u32>(next_title_info_index, static_cast<u32>(scanned_title_info.size() - 1));
+    }
 
     IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
     rb.Push(ResultSuccess);
@@ -416,7 +473,7 @@ void DLP_Clt_Base::GetNodeInfo(Kernel::HLERequestContext& ctx) {
 
     auto node_info = GetUDS()->GetNodeInformationHLE(network_node_id);
     if (!node_info) {
-        LOG_ERROR(Service_DLP, "Could not get node info for network node id 0x{:x}",
+        LOG_DEBUG(Service_DLP, "Could not get node info for network node id 0x{:x}",
                   network_node_id);
         IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
         rb.Push(Result(ErrorDescription::NoData, ErrorModule::DLP, ErrorSummary::NotFound,
@@ -469,12 +526,28 @@ void DLP_Clt_Base::BeaconScanCallback(std::uintptr_t user_data, s64 cycles_late)
             auto b = GetDLPServerInfoFromRawBeacon(beacon);
             scanned_title_info[idx].second.clients_joined =
                 b.clients_joined; // we only want to update clients joined
+            if (auto parsed = parsed_scan_cache.find(beacon.transmitter_address);
+                parsed != parsed_scan_cache.end()) {
+                parsed->second.second.clients_joined = b.clients_joined;
+            }
             continue;
         }
         if (scanned_title_info.size() >= max_title_info) {
             break;
         }
         if (ignore_servers_list[beacon.transmitter_address]) {
+            continue;
+        }
+
+        if (auto parsed = parsed_scan_cache.find(beacon.transmitter_address);
+            parsed != parsed_scan_cache.end()) {
+            auto cached_scan_info = parsed->second;
+            auto b = GetDLPServerInfoFromRawBeacon(beacon);
+            cached_scan_info.second.clients_joined = b.clients_joined;
+            parsed->second.second.clients_joined = b.clients_joined;
+
+            scanned_title_info.emplace_back(cached_scan_info);
+            dlp_status_event->Signal();
             continue;
         }
 
@@ -525,7 +598,7 @@ void DLP_Clt_Base::CacheBeaconTitleInfo(Network::WifiPacket& beacon) {
 
     std::unordered_map<int, bool> got_broadcast_packet;
     std::unordered_map<int, std::vector<u8>> broadcast_packet_idx_buf;
-    DLP_Username server_username; // workaround before I decrypt the beacon data
+    DLPNodeInfo server_node_info{}; // workaround before I decrypt the beacon data
     std::vector<u8> recv_buf;
     bool got_all_packets = false;
     while (beacon_parse_timer.GetTimeElapsed().count() < max_beacon_recv_time_out_ms) {
@@ -536,14 +609,29 @@ void DLP_Clt_Base::CacheBeaconTitleInfo(Network::WifiPacket& beacon) {
                 ignore_servers_list[beacon.transmitter_address] = true;
                 break; // corrupted info
             }
+
+            const auto expected_packet_size = GetExpectedBroadcastPacketSize(p_head->packet_index);
+            if (!expected_packet_size || static_cast<size_t>(sz) < *expected_packet_size) {
+                LOG_ERROR(Service_DLP,
+                          "Broadcast packet {} is too small: got {}, expected at least {}",
+                          p_head->packet_index, sz,
+                          expected_packet_size.value_or(sizeof(DLPPacketHeader)));
+                ignore_servers_list[beacon.transmitter_address] = true;
+                break; // corrupted info
+            }
+
             got_broadcast_packet[p_head->packet_index] = true;
             broadcast_packet_idx_buf[p_head->packet_index] = recv_buf;
             if (got_broadcast_packet.size() == num_broadcast_packets) {
                 got_all_packets = true;
                 constexpr u16 nwm_host_node_network_id = 0x1;
-                server_username = uds->GetNodeInformationHLE(nwm_host_node_network_id)->username;
+                if (auto node_info = uds->GetNodeInformationHLE(nwm_host_node_network_id)) {
+                    server_node_info = UDSToDLPNodeInfo(*node_info);
+                }
                 break; // we got all 5!
             }
+        } else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
 
@@ -568,16 +656,24 @@ void DLP_Clt_Base::CacheBeaconTitleInfo(Network::WifiPacket& beacon) {
     [[maybe_unused]] auto broad_pk5 =
         reinterpret_cast<DLPBroadcastPacket5*>(broadcast_packet_idx_buf[4].data());
 
+    const u64 child_title_id = broad_pk1->child_title_id;
+
     // apply title filter
-    if (scan_title_id_filter && broad_pk1->child_title_id != scan_title_id_filter) {
-        LOG_WARNING(Service_DLP, "Got title info, but it did not match title id filter");
+    if (scan_title_id_filter && child_title_id != scan_title_id_filter) {
+        LOG_WARNING(Service_DLP,
+                    "Got title info, but it did not match title id filter "
+                    "(filter=0x{:016x}, child_title_id=0x{:016x})",
+                    scan_title_id_filter, child_title_id);
+        ignore_servers_list[beacon.transmitter_address] = true;
         return;
     }
 
     DLPServerInfo c_server_info = GetDLPServerInfoFromRawBeacon(beacon);
     {
-        // workaround: load username in host node manually
-        c_server_info.node_info[0].username = server_username;
+        // Workaround until beacon node info is decrypted: use the spectator connection's host node.
+        c_server_info.node_info[0] = server_node_info;
+        c_server_info.node_info[0].network_node_id = dlp_host_network_node_id;
+        c_server_info.unk3 = 0x1;
     }
 
     DLPTitleInfo c_title_info{};
@@ -591,6 +687,7 @@ void DLP_Clt_Base::CacheBeaconTitleInfo(Network::WifiPacket& beacon) {
 
     // unique id should be the title id without the tid high shifted 1 byte right
     c_title_info.unique_id = (broad_pk1->child_title_id & 0xFFFFFFFF) >> 8;
+    c_title_info.variation = broad_pk1->child_title_id & 0xFF;
 
     c_title_info.size = broad_pk1->transfer_size;
 
@@ -605,9 +702,10 @@ void DLP_Clt_Base::CacheBeaconTitleInfo(Network::WifiPacket& beacon) {
     icon_copy_loc =
         std::copy(broad_pk4->icon_part.begin(), broad_pk4->icon_part.end(), icon_copy_loc);
 
-    LOG_INFO(Service_DLP, "Got title info");
-
+    parsed_scan_cache[beacon.transmitter_address] = {c_title_info, c_server_info};
     scanned_title_info.emplace_back(c_title_info, c_server_info);
+
+    LOG_INFO(Service_DLP, "Got title info");
 
     dlp_status_event->Signal();
 }
@@ -829,7 +927,7 @@ bool DLP_Clt_Base::NeedsContentDownload(Network::MacAddress mac_addr) {
         return false;
     }
     auto tinfo = scanned_title_info[GetCachedTitleInfoIdx(mac_addr)].first;
-    u64 title_id = DLP_CHILD_TID_HIGH | (tinfo.unique_id << 8);
+    u64 title_id = DLP_CHILD_TID_HIGH | (tinfo.unique_id << 8) | tinfo.variation;
     return !FileUtil::Exists(AM::GetTitleContentPath(FS::MediaType::NAND, title_id));
 }
 

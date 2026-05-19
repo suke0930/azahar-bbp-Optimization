@@ -22,6 +22,12 @@
 
 すべての変更を upstream に提出できる形へ整える必要はありません。必要になったものだけ、後から整理して再利用する方針です。
 
+## BBP ローカルマルチプレイ対応
+
+現在の pre-release では、BBP のローカル通信マルチプレイで部屋を検出して参加できるようにするための DLP/ローカル通信まわりの修正を含めています。
+
+既知の挙動として、ゲスト側の部屋一覧で部屋表示が一時的に点滅したり消えたりする場合があります。多くの場合は一定時間後に再表示されますが、完全に安定した表示ではないため、接続できない場合は少し待ってから再度選択してください。
+
 ## 開発環境
 
 この fork の調査、実装、整理には Codex、OpenCode、Claude などのエージェント系ツールを利用しています。生成された変更は、手元で確認しながら BBP 向けのパッチとして整理します。
@@ -67,6 +73,16 @@ code useful for Band Brothers P.
 
 Not every change is expected to be suitable for upstream submission. If a patch
 becomes broadly useful, it can be cleaned up later.
+
+## BBP Local Multiplayer Support
+
+Current pre-release builds include DLP/local communication fixes that allow BBP
+local multiplayer rooms to be discovered and joined.
+
+Known behavior: on the guest side, room entries may temporarily flicker or
+disappear from the room list. They usually return after a short time, but the
+display is not fully stable yet. If a room cannot be selected immediately, wait
+briefly and try selecting it again.
 
 ## Development Environment
 
