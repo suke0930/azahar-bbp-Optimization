@@ -41,6 +41,13 @@ if(NOT ANDROID AND (CMAKE_SYSTEM_NAME STREQUAL CMAKE_HOST_SYSTEM_NAME))
     catch_discover_tests(tests)
 endif()
 
+if (WIN32)
+    add_test(
+        NAME windows_bundle_validation_launcher
+        COMMAND ${CMAKE_COMMAND}
+                -DREPO_ROOT=${CMAKE_SOURCE_DIR}
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/windows_bundle_validation_launcher.cmake")
+endif()
 
 if (CITRA_USE_PRECOMPILED_HEADERS)
     target_precompile_headers(tests PRIVATE precompiled_headers.h)

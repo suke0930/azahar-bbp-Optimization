@@ -28,6 +28,18 @@
 
 既知の挙動として、ゲスト側の部屋一覧で部屋表示が一時的に点滅したり消えたりする場合があります。多くの場合は一定時間後に再表示されますが、完全に安定した表示ではないため、接続できない場合は少し待ってから再度選択してください。
 
+## Radeon Vulkan Fallback
+
+Windows の Radeon 環境で通常の `azahar.exe` が Vulkan 初期化中に落ちる場合、配布物に同梱される `azahar-vulkan-validation.cmd` を使うと起動できることがあります。
+
+この fallback は `VK_LAYER_KHRONOS_validation` を使うため、Vulkan SDK / validation layer が必要です。通常起動では不要ですが、fallback を使う場合は事前に以下のいずれかで導入してください。
+
+```powershell
+winget install --id KhronosGroup.VulkanSDK -e
+```
+
+https://vulkan.lunarg.com/sdk/home
+
 ## 開発環境
 
 この fork の調査、実装、整理には Codex、OpenCode、Claude などのエージェント系ツールを利用しています。生成された変更は、手元で確認しながら BBP 向けのパッチとして整理します。
@@ -83,6 +95,22 @@ Known behavior: on the guest side, room entries may temporarily flicker or
 disappear from the room list. They usually return after a short time, but the
 display is not fully stable yet. If a room cannot be selected immediately, wait
 briefly and try selecting it again.
+
+## Radeon Vulkan Fallback
+
+On Windows Radeon systems where the normal `azahar.exe` crashes during Vulkan
+initialization, the bundled `azahar-vulkan-validation.cmd` may allow the app to
+start successfully.
+
+This fallback uses `VK_LAYER_KHRONOS_validation`, so the Vulkan SDK /
+validation layer must be installed first. Normal startup does not require it,
+but the fallback launcher does. Install it with either:
+
+```powershell
+winget install --id KhronosGroup.VulkanSDK -e
+```
+
+https://vulkan.lunarg.com/sdk/home
 
 ## Development Environment
 
