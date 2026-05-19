@@ -629,6 +629,7 @@ void DLP_Clt_Base::CacheBeaconTitleInfo(Network::WifiPacket& beacon) {
                     "Got title info, but it did not match title id filter "
                     "(filter=0x{:016x}, child_title_id=0x{:016x})",
                     scan_title_id_filter, child_title_id);
+        ignore_servers_list[beacon.transmitter_address] = true;
         return;
     }
 

@@ -1034,9 +1034,18 @@ void DLP_SRVR::EndConnectionManager() {
 // make sure to lock the client states mutex before
 // calling this
 DLP_SRVR::ClientState* DLP_SRVR::GetClState(u8 node_id, bool should_error) {
-    u8 cl_state_index = node_id - first_client_node_id;
-    if (cl_state_index >= client_states.size() && should_error) {
-        LOG_CRITICAL(Service_DLP, "Out of range node id {}", node_id);
+    if (node_id < first_client_node_id) {
+        if (should_error) {
+            LOG_CRITICAL(Service_DLP, "Out of range node id {}", node_id);
+        }
+        return nullptr;
+    }
+
+    const size_t cl_state_index = static_cast<size_t>(node_id - first_client_node_id);
+    if (cl_state_index >= client_states.size()) {
+        if (should_error) {
+            LOG_CRITICAL(Service_DLP, "Out of range node id {}", node_id);
+        }
         return nullptr;
     }
     return &client_states[cl_state_index];
