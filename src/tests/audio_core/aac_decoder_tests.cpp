@@ -28,7 +28,9 @@ AudioCore::HLE::BinaryMessage DecodeAac(AudioCore::HLE::AACDecoder& decoder,
                                         std::size_t src_offset, std::size_t dst0_offset,
                                         std::size_t dst1_offset, std::size_t dst_size,
                                         u32 response_mirror_word = 0) {
-    std::memcpy(memory.GetFCRAMPointer(src_offset), packet.data(), packet.size());
+    if (!packet.empty()) {
+        std::memcpy(memory.GetFCRAMPointer(src_offset), packet.data(), packet.size());
+    }
     std::memset(memory.GetFCRAMPointer(dst0_offset), 0x7F, dst_size);
     std::memset(memory.GetFCRAMPointer(dst1_offset), 0x7F, dst_size);
 

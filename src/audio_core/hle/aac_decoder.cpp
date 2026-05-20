@@ -332,8 +332,17 @@ bool AACDecoder::DecodeFrames(std::span<const u8> data, AACInputFormat input_for
 
 bool AACDecoder::InitializeRawDecoderAndDecode(std::span<const u8> data, BinaryMessage& response,
                                                std::array<std::vector<s16>, 2>& out_streams) {
+    const DecoderSampleRate previous_sample_rate = last_sample_rate;
+    const u32 previous_num_channels = last_num_channels;
+    const DecoderSampleRate previous_response_sample_rate = response.decode_aac_response.sample_rate;
+    const u32 previous_response_num_channels = response.decode_aac_response.num_channels;
+
     for (const auto& candidate : raw_aac_candidate_configs) {
         if (!OpenNewDecoder()) {
+            last_sample_rate = previous_sample_rate;
+            last_num_channels = previous_num_channels;
+            response.decode_aac_response.sample_rate = previous_response_sample_rate;
+            response.decode_aac_response.num_channels = previous_response_num_channels;
             return false;
         }
 
@@ -356,6 +365,10 @@ bool AACDecoder::InitializeRawDecoderAndDecode(std::span<const u8> data, BinaryM
         std::array<std::vector<s16>, 2> trial_out_streams;
         if (!DecodeFrames(data, AACInputFormat::Raw, response, trial_out_streams, "raw")) {
             decoder_initialized = false;
+            last_sample_rate = previous_sample_rate;
+            last_num_channels = previous_num_channels;
+            response.decode_aac_response.sample_rate = previous_response_sample_rate;
+            response.decode_aac_response.num_channels = previous_response_num_channels;
             continue;
         }
 
