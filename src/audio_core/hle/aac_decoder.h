@@ -14,6 +14,14 @@ namespace AudioCore::HLE {
 
 using NeAACDecHandle = void*;
 
+enum class AACInputFormat {
+    Raw,
+    Adts,
+    IsoBmff,
+};
+
+AACInputFormat DetectAACInputFormat(std::span<const u8> data);
+
 class AACDecoder final : public DecoderBase {
 public:
     explicit AACDecoder(Memory::MemorySystem& memory);
@@ -25,7 +33,7 @@ public:
 private:
     BinaryMessage Decode(const BinaryMessage& request);
     bool OpenNewDecoder();
-    bool DecodeFrames(std::span<const u8> data, BinaryMessage& response,
+    bool DecodeFrames(std::span<const u8> data, AACInputFormat input_format, BinaryMessage& response,
                       std::array<std::vector<s16>, 2>& out_streams, const char* mode);
     bool InitializeRawDecoderAndDecode(std::span<const u8> data, BinaryMessage& response,
                                        std::array<std::vector<s16>, 2>& out_streams);

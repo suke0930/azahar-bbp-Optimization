@@ -44,6 +44,26 @@ AudioCore::HLE::BinaryMessage DecodeAac(AudioCore::HLE::AACDecoder& decoder,
 
 } // namespace
 
+TEST_CASE("AAC decoder classifies BBP radio packets as raw AAC", "[audio_core][aac]") {
+    constexpr std::array<u8, 16> radio_packet_preview = {
+        0x21, 0x1C, 0x93, 0xF8, 0xC8, 0x3E, 0x10, 0x74,
+        0x00, 0x68, 0x33, 0x7C, 0x87, 0xF4, 0xCD, 0x9E,
+    };
+    constexpr std::array<u8, 7> adts_packet_preview = {
+        0xFF, 0xF1, 0x4C, 0x80, 0x00, 0x1F, 0xFC,
+    };
+    constexpr std::array<u8, 12> m4a_packet_preview = {
+        0x00, 0x00, 0x00, 0x18, 'f',  't',  'y',  'p',  'M',  '4',  'A',  ' ',
+    };
+
+    CHECK(AudioCore::HLE::DetectAACInputFormat(radio_packet_preview) ==
+          AudioCore::HLE::AACInputFormat::Raw);
+    CHECK(AudioCore::HLE::DetectAACInputFormat(adts_packet_preview) ==
+          AudioCore::HLE::AACInputFormat::Adts);
+    CHECK(AudioCore::HLE::DetectAACInputFormat(m4a_packet_preview) ==
+          AudioCore::HLE::AACInputFormat::IsoBmff);
+}
+
 TEST_CASE("AAC decoder can decode ADTS AAC payloads", "[audio_core][aac]") {
     Core::System system;
     Memory::MemorySystem memory{system};

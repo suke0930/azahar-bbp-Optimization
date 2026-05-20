@@ -43,6 +43,19 @@ constexpr std::array<RawAacCandidateConfig, 12> raw_aac_candidate_configs = {{
     {BuildAacLcAsc(8, 1), 16000, 1},
 }};
 
+[[nodiscard]] bool HasTagAt(std::span<const u8> data, std::size_t offset,
+                            std::array<char, 4> tag) {
+    if (data.size() < offset + tag.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < tag.size(); ++i) {
+        if (data[offset + i] != static_cast<u8>(tag[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
 [[nodiscard]] std::string PreviewBytes(std::span<const u8> data) {
     static constexpr char hex[] = "0123456789ABCDEF";
 
@@ -59,7 +72,29 @@ constexpr std::array<RawAacCandidateConfig, 12> raw_aac_candidate_configs = {{
     return out;
 }
 
+[[nodiscard]] const char* ToString(AACInputFormat format) {
+    switch (format) {
+    case AACInputFormat::Raw:
+        return "raw";
+    case AACInputFormat::Adts:
+        return "adts";
+    case AACInputFormat::IsoBmff:
+        return "iso_bmff";
+    }
+    return "raw";
+}
+
 } // namespace
+
+AACInputFormat DetectAACInputFormat(std::span<const u8> data) {
+    if (data.size() >= 2 && data[0] == 0xFF && (data[1] & 0xF6) == 0xF0) {
+        return AACInputFormat::Adts;
+    }
+    if (HasTagAt(data, 4, {'f', 't', 'y', 'p'})) {
+        return AACInputFormat::IsoBmff;
+    }
+    return AACInputFormat::Raw;
+}
 
 AACDecoder::AACDecoder(Memory::MemorySystem& memory) : memory(memory) {
     Reset();
@@ -150,24 +185,31 @@ BinaryMessage AACDecoder::Decode(const BinaryMessage& request) {
     u8* data = memory.GetFCRAMPointer(request.decode_aac_request.src_addr - Memory::FCRAM_PADDR);
     u32 data_len = request.decode_aac_request.size;
     const std::span<const u8> input{data, data_len};
+    const AACInputFormat input_format = DetectAACInputFormat(input);
 
     std::array<std::vector<s16>, 2> out_streams;
     bool decoded_during_initialization = false;
 
     if (!decoder_initialized) {
-        unsigned long sample_rate{};
-        u8 num_channels{};
-        const auto init_result = NeAACDecInit(decoder, data, data_len, &sample_rate, &num_channels);
-        if (init_result < 0) {
+        if (input_format == AACInputFormat::Raw) {
             if (!InitializeRawDecoderAndDecode(input, response, out_streams)) {
-                LOG_ERROR(Audio_DSP,
-                          "Could not initialize FAAD2 AAC decoder for request: {} preview={}",
-                          init_result, PreviewBytes(input));
                 response.header.result = ResultStatus::Error;
                 return response;
             }
             decoded_during_initialization = true;
         } else {
+            unsigned long sample_rate{};
+            u8 num_channels{};
+            const auto init_result =
+                NeAACDecInit(decoder, data, data_len, &sample_rate, &num_channels);
+            if (init_result < 0) {
+                LOG_ERROR(Audio_DSP, "Could not initialize FAAD2 AAC decoder for request: {} "
+                                     "preview={}",
+                          init_result, PreviewBytes(input));
+                response.header.result = ResultStatus::Error;
+                return response;
+            }
+
             decoder_initialized = true;
             last_sample_rate = GetSampleRateEnum(sample_rate);
             last_num_channels = num_channels;
@@ -180,7 +222,7 @@ BinaryMessage AACDecoder::Decode(const BinaryMessage& request) {
     }
 
     if (!decoded_during_initialization) {
-        if (!DecodeFrames({data, data_len}, response, out_streams, "stream")) {
+        if (!DecodeFrames({data, data_len}, input_format, response, out_streams, "stream")) {
             response.header.result = ResultStatus::Error;
             return response;
         }
@@ -232,7 +274,8 @@ bool AACDecoder::OpenNewDecoder() {
     return true;
 }
 
-bool AACDecoder::DecodeFrames(std::span<const u8> data, BinaryMessage& response,
+bool AACDecoder::DecodeFrames(std::span<const u8> data, AACInputFormat input_format,
+                              BinaryMessage& response,
                               std::array<std::vector<s16>, 2>& out_streams, const char* mode) {
     const u8* ptr = data.data();
     u32 remaining = static_cast<u32>(data.size());
@@ -243,9 +286,9 @@ bool AACDecoder::DecodeFrames(std::span<const u8> data, BinaryMessage& response,
             static_cast<s16*>(NeAACDecDecode(decoder, &frame_info, const_cast<u8*>(ptr), remaining));
         if (curr_sample_buffer == nullptr || frame_info.error != 0) {
             LOG_ERROR(Audio_DSP,
-                      "Failed to decode AAC buffer using FAAD2: {} mode={} remaining={} "
+                      "Failed to decode AAC buffer using FAAD2: {} mode={} format={} remaining={} "
                       "preview={} bytes_consumed={}",
-                      frame_info.error, mode, remaining,
+                      frame_info.error, mode, ToString(input_format), remaining,
                       PreviewBytes(std::span<const u8>{ptr, remaining}), frame_info.bytesconsumed);
             return false;
         }
@@ -299,7 +342,7 @@ bool AACDecoder::InitializeRawDecoderAndDecode(std::span<const u8> data, BinaryM
         response.decode_aac_response.num_channels = last_num_channels;
 
         std::array<std::vector<s16>, 2> trial_out_streams;
-        if (!DecodeFrames(data, response, trial_out_streams, "raw")) {
+        if (!DecodeFrames(data, AACInputFormat::Raw, response, trial_out_streams, "raw")) {
             decoder_initialized = false;
             continue;
         }
