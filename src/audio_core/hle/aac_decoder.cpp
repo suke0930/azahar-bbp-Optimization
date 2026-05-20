@@ -2,6 +2,7 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
 #include <array>
 #include <string>
 
@@ -301,11 +302,12 @@ bool AACDecoder::DecodeFrames(std::span<const u8> data, AACInputFormat input_for
         }
 
         if (frame_info.channels == 0 || frame_info.channels > out_streams.size() ||
-            frame_info.bytesconsumed == 0 || frame_info.bytesconsumed > remaining) {
+            frame_info.bytesconsumed == 0 || frame_info.bytesconsumed > remaining ||
+            frame_info.samples % frame_info.channels != 0) {
             LOG_ERROR(Audio_DSP,
                       "FAAD2 produced an invalid AAC frame: channels={} bytesconsumed={} "
-                      "remaining={}",
-                      frame_info.channels, frame_info.bytesconsumed, remaining);
+                      "remaining={} samples={}",
+                      frame_info.channels, frame_info.bytesconsumed, remaining, frame_info.samples);
             return false;
         }
 
@@ -357,6 +359,7 @@ bool AACDecoder::InitializeRawDecoderAndDecode(std::span<const u8> data, BinaryM
             continue;
         }
 
+        // FAAD2 can accept a raw AAC access unit before producing PCM on this path.
         out_streams = std::move(trial_out_streams);
         return true;
     }
