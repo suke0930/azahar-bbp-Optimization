@@ -65,7 +65,7 @@ struct DecodeAACRequest {
     u32_le dst_addr_ch0 = 0;
     u32_le dst_addr_ch1 = 0;
     u32_le unknown1 = 0; // unused?
-    u32_le unknown2 = 0; // unused?
+    u32_le unknown2 = 0; // mirrored by the DSP in DecodeAACResponse::num_samples
 };
 
 struct DecodeAACResponse {
@@ -74,7 +74,7 @@ struct DecodeAACResponse {
     u32_le size = 0;
     u32_le unknown1 = 0;
     u32_le unknown2 = 0;
-    u32_le num_samples = 0; // this is a guess, so far I only observed 1024 here
+    u32_le num_samples = 0; // mirrors DecodeAACRequest::unknown2 on the DSP
 };
 
 // The DSP replies with the same contents as the response too.
