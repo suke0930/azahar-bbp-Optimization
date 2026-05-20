@@ -12,6 +12,7 @@ add_executable(tests
     audio_core/hle/source.cpp
     audio_core/lle/lle.cpp
     audio_core/audio_fixures.h
+    audio_core/aac_decoder_tests.cpp
     audio_core/decoder_tests.cpp
     video_core/bbp_compat.cpp
     video_core/shader.cpp
