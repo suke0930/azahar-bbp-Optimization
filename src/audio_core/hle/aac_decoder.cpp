@@ -166,6 +166,7 @@ BinaryMessage AACDecoder::Decode(const BinaryMessage& request) {
     response.decode_aac_response.size = request.decode_aac_request.size;
     response.decode_aac_response.sample_rate = last_sample_rate;
     response.decode_aac_response.num_channels = last_num_channels;
+    // The real DSP mirrors this request word in the last decode response word.
     response.decode_aac_response.num_samples = request.decode_aac_request.unknown2;
 
     if (decoder == nullptr) {
@@ -184,6 +185,12 @@ BinaryMessage AACDecoder::Decode(const BinaryMessage& request) {
     }
     u8* data = memory.GetFCRAMPointer(request.decode_aac_request.src_addr - Memory::FCRAM_PADDR);
     u32 data_len = request.decode_aac_request.size;
+    if (data_len == 0) {
+        LOG_ERROR(Audio_DSP, "Got empty AAC decode request.");
+        response.header.result = ResultStatus::Error;
+        return response;
+    }
+
     const std::span<const u8> input{data, data_len};
     const AACInputFormat input_format = DetectAACInputFormat(input);
 
@@ -293,8 +300,10 @@ bool AACDecoder::DecodeFrames(std::span<const u8> data, AACInputFormat input_for
             return false;
         }
 
-        if (frame_info.channels == 0 || frame_info.bytesconsumed == 0) {
-            LOG_ERROR(Audio_DSP, "FAAD2 produced an invalid AAC frame: channels={} bytesconsumed={}",
+        if (frame_info.channels == 0 || frame_info.channels > out_streams.size() ||
+            frame_info.bytesconsumed == 0) {
+            LOG_ERROR(Audio_DSP,
+                      "FAAD2 produced an invalid AAC frame: channels={} bytesconsumed={}",
                       frame_info.channels, frame_info.bytesconsumed);
             return false;
         }

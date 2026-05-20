@@ -2,7 +2,6 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-#include <algorithm>
 #include <array>
 #include <cstring>
 #include <span>
@@ -27,7 +26,8 @@ AudioCore::HLE::BinaryMessage InitAacDecoder(AudioCore::HLE::AACDecoder& decoder
 AudioCore::HLE::BinaryMessage DecodeAac(AudioCore::HLE::AACDecoder& decoder,
                                         Memory::MemorySystem& memory, std::span<const u8> packet,
                                         std::size_t src_offset, std::size_t dst0_offset,
-                                        std::size_t dst1_offset, std::size_t dst_size) {
+                                        std::size_t dst1_offset, std::size_t dst_size,
+                                        u32 response_mirror_word = 0) {
     std::memcpy(memory.GetFCRAMPointer(src_offset), packet.data(), packet.size());
     std::memset(memory.GetFCRAMPointer(dst0_offset), 0x7F, dst_size);
     std::memset(memory.GetFCRAMPointer(dst1_offset), 0x7F, dst_size);
@@ -39,6 +39,7 @@ AudioCore::HLE::BinaryMessage DecodeAac(AudioCore::HLE::AACDecoder& decoder,
     decode_request.decode_aac_request.size = static_cast<u32>(packet.size());
     decode_request.decode_aac_request.dst_addr_ch0 = Memory::FCRAM_PADDR + dst0_offset;
     decode_request.decode_aac_request.dst_addr_ch1 = Memory::FCRAM_PADDR + dst1_offset;
+    decode_request.decode_aac_request.unknown2 = response_mirror_word;
     return decoder.ProcessRequest(decode_request);
 }
 
@@ -78,13 +79,12 @@ TEST_CASE("AAC decoder can decode ADTS AAC payloads", "[audio_core][aac]") {
     REQUIRE(init_response.header.result == AudioCore::HLE::ResultStatus::Success);
 
     const std::span<const u8> packet{fixure_buffer[0]};
-    const auto decode_response =
-        DecodeAac(decoder, memory, packet, src_offset, dst0_offset, dst1_offset, dst_size);
+    constexpr u32 response_mirror_word = 0x082C7510;
+    const auto decode_response = DecodeAac(decoder, memory, packet, src_offset, dst0_offset,
+                                           dst1_offset, dst_size, response_mirror_word);
 
     CHECK(decode_response.header.result == AudioCore::HLE::ResultStatus::Success);
-    CHECK(std::any_of(memory.GetFCRAMPointer(dst0_offset),
-                      memory.GetFCRAMPointer(dst0_offset + dst_size),
-                      [](u8 value) { return value != 0x7F; }));
+    CHECK(decode_response.decode_aac_response.num_samples == response_mirror_word);
 }
 
 TEST_CASE("AAC decoder can decode raw BBP radio AAC access units", "[audio_core][aac]") {
@@ -107,17 +107,33 @@ TEST_CASE("AAC decoder can decode raw BBP radio AAC access units", "[audio_core]
     const auto init_response = InitAacDecoder(decoder);
     REQUIRE(init_response.header.result == AudioCore::HLE::ResultStatus::Success);
 
+    constexpr u32 response_mirror_word = 0x082C7510;
     const auto decode_response = DecodeAac(decoder, memory, radio_packet, src_offset, dst0_offset,
-                                           dst1_offset, dst_size);
+                                           dst1_offset, dst_size, response_mirror_word);
 
     CHECK(decode_response.header.result == AudioCore::HLE::ResultStatus::Success);
+    CHECK(decode_response.decode_aac_response.num_samples == response_mirror_word);
     CHECK(decode_response.decode_aac_response.sample_rate ==
           AudioCore::HLE::DecoderSampleRate::Rate32000);
     CHECK(decode_response.decode_aac_response.num_channels == 2);
-    CHECK(std::any_of(memory.GetFCRAMPointer(dst0_offset),
-                      memory.GetFCRAMPointer(dst0_offset + dst_size),
-                      [](u8 value) { return value != 0x7F; }));
-    CHECK(std::any_of(memory.GetFCRAMPointer(dst1_offset),
-                      memory.GetFCRAMPointer(dst1_offset + dst_size),
-                      [](u8 value) { return value != 0x7F; }));
+}
+
+TEST_CASE("AAC decoder rejects empty decode requests", "[audio_core][aac]") {
+    Core::System system;
+    Memory::MemorySystem memory{system};
+    AudioCore::HLE::AACDecoder decoder{memory};
+
+    constexpr std::size_t src_offset = 0x1000;
+    constexpr std::size_t dst0_offset = 0x2000;
+    constexpr std::size_t dst1_offset = 0x4000;
+    constexpr std::size_t dst_size = 0x1000;
+
+    const auto init_response = InitAacDecoder(decoder);
+    REQUIRE(init_response.header.result == AudioCore::HLE::ResultStatus::Success);
+
+    const std::span<const u8> empty_packet{};
+    const auto decode_response =
+        DecodeAac(decoder, memory, empty_packet, src_offset, dst0_offset, dst1_offset, dst_size);
+
+    CHECK(decode_response.header.result == AudioCore::HLE::ResultStatus::Error);
 }
