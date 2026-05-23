@@ -2,6 +2,8 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
+#include <array>
 #include <vector>
 #include "common/archives.h"
 #include "common/common_types.h"
@@ -12,6 +14,7 @@
 #include "core/hle/ipc_helpers.h"
 #include "core/hle/kernel/event.h"
 #include "core/hle/kernel/handle_table.h"
+#include "core/hle/kernel/process.h"
 #include "core/hle/kernel/resource_limit.h"
 #include "core/hle/kernel/shared_page.h"
 #include "core/hle/result.h"
@@ -25,6 +28,34 @@ SERIALIZE_EXPORT_IMPL(Service::AC::Module)
 SERVICE_CONSTRUCT_IMPL(Service::AC::Module)
 
 namespace Service::AC {
+
+namespace {
+
+constexpr std::array<u64, 2> BandBrothersPProgramIds{
+    0x00040000000A0B00,
+    0x0004000E000A0B00,
+};
+
+constexpr Result ResultBbpInternetUnavailable(static_cast<ErrorDescription>(102), ErrorModule::AC,
+                                              ErrorSummary::StatusChanged, ErrorLevel::Status);
+
+bool IsBandBrothersPProgramId(u64 program_id) {
+    return std::find(BandBrothersPProgramIds.begin(), BandBrothersPProgramIds.end(), program_id) !=
+           BandBrothersPProgramIds.end();
+}
+
+bool IsBandBrothersPCaller(Kernel::HLERequestContext& ctx) {
+    const auto thread = ctx.ClientThread();
+    if (!thread) {
+        return false;
+    }
+
+    const auto process = thread->owner_process.lock();
+    return process && process->codeset && IsBandBrothersPProgramId(process->codeset->program_id);
+}
+
+} // namespace
+
 void Module::Interface::CreateDefaultConfig(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp(ctx);
 
@@ -45,26 +76,42 @@ void Module::Interface::ConnectAsync(Kernel::HLERequestContext& ctx) {
     ac->connect_event = rp.PopObject<Kernel::Event>();
     rp.Skip(2, false); // Buffer descriptor
 
+    const bool is_band_brothers_p = IsBandBrothersPCaller(ctx);
+
     if (ac->connect_event) {
         ac->connect_event->SetName("AC:connect_event");
         ac->connect_event->Signal();
-        ac->ac_connected = true;
     }
+
+    ac->ac_connected = !is_band_brothers_p;
 
     IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
     rb.Push(ResultSuccess);
 
-    LOG_WARNING(Service_AC, "(STUBBED) called");
+    if (is_band_brothers_p) {
+        LOG_WARNING(Service_AC, "Short-circuiting BBP internet connection as unavailable");
+    } else {
+        LOG_WARNING(Service_AC, "(STUBBED) called");
+    }
 }
 
 void Module::Interface::GetConnectResult(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp(ctx);
     rp.Skip(2, false); // ProcessId descriptor
 
-    IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
-    rb.Push(ResultSuccess);
+    const bool is_band_brothers_p = IsBandBrothersPCaller(ctx);
+    if (is_band_brothers_p) {
+        ac->ac_connected = false;
+    }
 
-    LOG_WARNING(Service_AC, "(STUBBED) called");
+    IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
+    rb.Push(is_band_brothers_p ? ResultBbpInternetUnavailable : ResultSuccess);
+
+    if (is_band_brothers_p) {
+        LOG_WARNING(Service_AC, "Returning BBP internet unavailable result");
+    } else {
+        LOG_WARNING(Service_AC, "(STUBBED) called");
+    }
 }
 
 void Module::Interface::CancelConnectAsync(Kernel::HLERequestContext& ctx) {
@@ -203,7 +250,7 @@ void Module::Interface::IsConnected(Kernel::HLERequestContext& ctx) {
 
     IPC::RequestBuilder rb = rp.MakeBuilder(2, 0);
     rb.Push(ResultSuccess);
-    rb.Push(ac->ac_connected);
+    rb.Push(IsBandBrothersPCaller(ctx) ? false : ac->ac_connected);
 
     LOG_DEBUG(Service_AC, "(STUBBED) called unk=0x{:08X} descriptor=0x{:08X} param=0x{:08X}", unk,
               unk_descriptor, unk_param);
