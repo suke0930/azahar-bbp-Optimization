@@ -698,6 +698,7 @@ void System::Shutdown(bool is_deserializing) {
     is_powered_on = false;
 
     gpu.reset();
+    title_id = 0;
     VideoCore::BbpCompat::SetCurrentProgramId(0);
     if (!is_deserializing) {
         lle_modules.clear();

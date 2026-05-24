@@ -18,8 +18,10 @@
 #include "core/file_sys/file_backend.h"
 #include "core/hle/ipc_helpers.h"
 #include "core/hle/kernel/ipc.h"
+#include "core/hle/kernel/process.h"
 #include "core/hle/romfs.h"
 #include "core/hle/service/fs/archive.h"
+#include "core/hle/service/http/bbp_nasc.h"
 #include "core/hle/service/http/http_c.h"
 #include "core/hw/aes/key.h"
 
@@ -176,6 +178,16 @@ static std::size_t WriteHeaders(httplib::Stream& stream,
     return write_len;
 }
 
+static u64 GetCallerProgramId(Kernel::HLERequestContext& ctx) {
+    const auto thread = ctx.ClientThread();
+    if (!thread) {
+        return 0;
+    }
+
+    const auto process = thread->owner_process.lock();
+    return process && process->codeset ? process->codeset->program_id : 0;
+}
+
 static void SerializeChunkedAsciiPostData(httplib::DataSink& sink, const Context::Params& params) {
     std::string query;
 
@@ -296,6 +308,19 @@ void Context::MakeRequest() {
     std::vector<Context::RequestHeader> pending_headers;
     request.method = request_method_strings.at(method);
     request.path = url_info.path;
+
+    if (BbpNasc::ShouldSynthesizeShutdown(current_title_id, caller_program_id, method, url_info)) {
+        response = httplib::Response{};
+        response.version = "HTTP/1.1";
+        response.status = 200;
+        response.reason = "OK";
+        response.body = BbpNasc::MakeShutdownResponse();
+        response.headers.emplace("Content-Type", "text/plain");
+        response.headers.emplace("Content-Length", fmt::format("{}", response.body.size()));
+        state = RequestState::ReceivingBody;
+        LOG_WARNING(Service_HTTP, "Synthesizing BBP NASC shutdown response for retired service");
+        return;
+    }
 
     request.progress = [this](u64 current, u64 total) -> bool {
         // TODO(B3N30): Is there a state that shows response header are available
@@ -784,6 +809,8 @@ void HTTP_C::CreateContext(Kernel::HLERequestContext& ctx) {
     contexts[context_counter].url = std::move(url);
     contexts[context_counter].method = method;
     contexts[context_counter].state = RequestState::NotStarted;
+    contexts[context_counter].current_title_id = Core::System::GetInstance().GetTitleId();
+    contexts[context_counter].caller_program_id = GetCallerProgramId(ctx);
     // TODO(Subv): Find a correct default value for this field.
     contexts[context_counter].socket_buffer_size = 0;
     contexts[context_counter].handle = context_counter;

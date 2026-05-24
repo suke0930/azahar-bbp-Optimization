@@ -54,6 +54,10 @@ bool IsBandBrothersPCaller(Kernel::HLERequestContext& ctx) {
     return process && process->codeset && IsBandBrothersPProgramId(process->codeset->program_id);
 }
 
+bool UseBbpRetiredServiceFlow() {
+    return Settings::values.enable_required_online_lle_modules.GetValue();
+}
+
 } // namespace
 
 void Module::Interface::CreateDefaultConfig(Kernel::HLERequestContext& ctx) {
@@ -77,19 +81,22 @@ void Module::Interface::ConnectAsync(Kernel::HLERequestContext& ctx) {
     rp.Skip(2, false); // Buffer descriptor
 
     const bool is_band_brothers_p = IsBandBrothersPCaller(ctx);
+    const bool use_retired_service_flow = is_band_brothers_p && UseBbpRetiredServiceFlow();
 
     if (ac->connect_event) {
         ac->connect_event->SetName("AC:connect_event");
         ac->connect_event->Signal();
     }
 
-    ac->ac_connected = !is_band_brothers_p;
+    ac->ac_connected = !is_band_brothers_p || use_retired_service_flow;
 
     IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
     rb.Push(ResultSuccess);
 
-    if (is_band_brothers_p) {
+    if (is_band_brothers_p && !use_retired_service_flow) {
         LOG_WARNING(Service_AC, "Short-circuiting BBP internet connection as unavailable");
+    } else if (use_retired_service_flow) {
+        LOG_WARNING(Service_AC, "Allowing BBP internet connection for retired-service response");
     } else {
         LOG_WARNING(Service_AC, "(STUBBED) called");
     }
@@ -100,15 +107,19 @@ void Module::Interface::GetConnectResult(Kernel::HLERequestContext& ctx) {
     rp.Skip(2, false); // ProcessId descriptor
 
     const bool is_band_brothers_p = IsBandBrothersPCaller(ctx);
-    if (is_band_brothers_p) {
+    const bool use_retired_service_flow = is_band_brothers_p && UseBbpRetiredServiceFlow();
+    if (is_band_brothers_p && !use_retired_service_flow) {
         ac->ac_connected = false;
     }
 
     IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
-    rb.Push(is_band_brothers_p ? ResultBbpInternetUnavailable : ResultSuccess);
+    rb.Push(is_band_brothers_p && !use_retired_service_flow ? ResultBbpInternetUnavailable
+                                                            : ResultSuccess);
 
-    if (is_band_brothers_p) {
+    if (is_band_brothers_p && !use_retired_service_flow) {
         LOG_WARNING(Service_AC, "Returning BBP internet unavailable result");
+    } else if (use_retired_service_flow) {
+        LOG_WARNING(Service_AC, "Returning BBP retired-service connection success");
     } else {
         LOG_WARNING(Service_AC, "(STUBBED) called");
     }
@@ -250,7 +261,8 @@ void Module::Interface::IsConnected(Kernel::HLERequestContext& ctx) {
 
     IPC::RequestBuilder rb = rp.MakeBuilder(2, 0);
     rb.Push(ResultSuccess);
-    rb.Push(IsBandBrothersPCaller(ctx) ? false : ac->ac_connected);
+    const bool is_band_brothers_p = IsBandBrothersPCaller(ctx);
+    rb.Push(is_band_brothers_p && !UseBbpRetiredServiceFlow() ? false : ac->ac_connected);
 
     LOG_DEBUG(Service_AC, "(STUBBED) called unk=0x{:08X} descriptor=0x{:08X} param=0x{:08X}", unk,
               unk_descriptor, unk_param);

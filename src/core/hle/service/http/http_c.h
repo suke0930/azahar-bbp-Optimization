@@ -265,6 +265,8 @@ public:
 
     Handle handle;
     u32 session_id;
+    u64 current_title_id = 0;
+    u64 caller_program_id = 0;
     std::string url;
     RequestMethod method;
     std::atomic<RequestState> state = RequestState::NotStarted;

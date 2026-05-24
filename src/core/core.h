@@ -320,6 +320,10 @@ public:
         return *app_loader;
     }
 
+    [[nodiscard]] u64 GetTitleId() const {
+        return title_id;
+    }
+
     /// Frontend Applets
 
     void RegisterMiiSelector(std::shared_ptr<Frontend::MiiSelector> mii_selector);
@@ -508,7 +512,7 @@ private:
     std::string m_filepath;
     std::string m_chainloadpath;
     std::optional<u8> m_mem_mode;
-    u64 title_id;
+    u64 title_id = 0;
 
     std::mutex signal_mutex;
     Signal current_signal;
