@@ -18,6 +18,18 @@ class System;
 
 namespace Remote {
 
+/**
+ * Build a unified error response JSON object.
+ * @param status  HTTP status code (used internally by Dispatch)
+ * @param message Human-readable error message
+ * @param code    Machine-readable error code
+ * @return JSON object: { "error": message, "code": code }
+ *
+ * The HTTP status code is carried in an internal "_http_status" field
+ * that Dispatch strips before sending the response body.
+ */
+nlohmann::json MakeErrorResponse(int status, const std::string& message, const std::string& code);
+
 class RequestDispatcher {
 public:
     using HandlerFunc = std::function<nlohmann::json(Core::System&, const nlohmann::json&)>;

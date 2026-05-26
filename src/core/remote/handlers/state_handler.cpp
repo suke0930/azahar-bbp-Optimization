@@ -6,6 +6,7 @@
 
 #include <json.hpp>
 #include "core/core.h"
+#include "core/remote/remote_handler.h"
 
 namespace Remote {
 
@@ -13,7 +14,7 @@ nlohmann::json HandleStateSave(Core::System& system, const nlohmann::json& body)
     const int slot = body.value("slot", 0);
     const int clamped = std::clamp(slot, 0, 10);
     if (!system.SendSignal(Core::System::Signal::Save, clamped)) {
-        return {{"status", "error"}, {"message", "signal already pending"}};
+        return MakeErrorResponse(409, "Signal already pending", "signal_pending");
     }
     return {{"status", "ok"}, {"slot", clamped}};
 }
@@ -22,7 +23,7 @@ nlohmann::json HandleStateLoad(Core::System& system, const nlohmann::json& body)
     const int slot = body.value("slot", 0);
     const int clamped = std::clamp(slot, 0, 10);
     if (!system.SendSignal(Core::System::Signal::Load, clamped)) {
-        return {{"status", "error"}, {"message", "signal already pending"}};
+        return MakeErrorResponse(409, "Signal already pending", "signal_pending");
     }
     return {{"status", "ok"}, {"slot", clamped}};
 }

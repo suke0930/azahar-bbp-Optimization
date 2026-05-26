@@ -317,10 +317,81 @@
        </widget>
       </item>
      </layout>
-    </widget>
-   </item>
-   <item>
-    <spacer name="verticalSpacer">
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="remote_server_groupbox">
+      <property name="title">
+       <string>Remote Server</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_remote_server">
+       <item>
+        <widget class="QCheckBox" name="enable_remote_server">
+         <property name="text">
+          <string>Enable Remote Server</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_remote_port">
+         <item>
+          <widget class="QLabel" name="remote_server_port_label">
+           <property name="text">
+            <string>Port:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="remote_server_port">
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>65535</number>
+           </property>
+           <property name="value">
+            <number>49355</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer_remote_port">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_remote_address">
+         <item>
+          <widget class="QLabel" name="remote_server_address_label">
+           <property name="text">
+            <string>Bind Address:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLineEdit" name="remote_server_bind_address">
+           <property name="text">
+            <string>127.0.0.1</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <spacer name="verticalSpacer">
      <property name="orientation">
       <enum>Qt::Vertical</enum>
      </property>
@@ -340,24 +411,59 @@
   <tabstop>log_filter_edit</tabstop>
   <tabstop>toggle_console</tabstop>
   <tabstop>open_log_button</tabstop>
+  <tabstop>enable_remote_server</tabstop>
+  <tabstop>remote_server_port</tabstop>
+  <tabstop>remote_server_bind_address</tabstop>
  </tabstops>
  <resources/>
  <connections>
   <connection>
-   <sender>toggle_gdbstub</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>gdbport_spinbox</receiver>
-   <slot>setEnabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>84</x>
-     <y>157</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>342</x>
-     <y>158</y>
-    </hint>
-   </hints>
-  </connection>
+    <sender>toggle_gdbstub</sender>
+    <signal>toggled(bool)</signal>
+    <receiver>gdbport_spinbox</receiver>
+    <slot>setEnabled(bool)</slot>
+    <hints>
+     <hint type="sourcelabel">
+      <x>84</x>
+      <y>157</y>
+     </hint>
+     <hint type="destinationlabel">
+      <x>342</x>
+      <y>158</y>
+     </hint>
+    </hints>
+   </connection>
+   <connection>
+    <sender>enable_remote_server</sender>
+    <signal>toggled(bool)</signal>
+    <receiver>remote_server_port</receiver>
+    <slot>setEnabled(bool)</slot>
+    <hints>
+     <hint type="sourcelabel">
+      <x>84</x>
+      <y>400</y>
+     </hint>
+     <hint type="destinationlabel">
+      <x>342</x>
+      <y>400</y>
+     </hint>
+    </hints>
+   </connection>
+   <connection>
+    <sender>enable_remote_server</sender>
+    <signal>toggled(bool)</signal>
+    <receiver>remote_server_bind_address</receiver>
+    <slot>setEnabled(bool)</slot>
+    <hints>
+     <hint type="sourcelabel">
+      <x>84</x>
+      <y>400</y>
+     </hint>
+     <hint type="destinationlabel">
+      <x>342</x>
+      <y>430</y>
+     </hint>
+    </hints>
+   </connection>
  </connections>
 </ui>

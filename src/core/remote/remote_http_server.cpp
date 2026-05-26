@@ -21,6 +21,7 @@ HttpServer::~HttpServer() {
 
 void HttpServer::Start() {
     server = std::make_unique<httplib::Server>();
+    server->set_payload_max_length(1024 * 1024); // Limit request body to 1MB
 
     auto make_handler = [this](const httplib::Request& req, httplib::Response& res) {
         RemoteRequest remote_req;

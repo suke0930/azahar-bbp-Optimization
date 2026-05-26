@@ -8,6 +8,7 @@
 #include <json.hpp>
 #include "common/settings.h"
 #include "core/core.h"
+#include "core/remote/remote_handler.h"
 
 namespace Remote {
 
@@ -22,16 +23,16 @@ nlohmann::json HandleEmulatorControl(Core::System& system, const nlohmann::json&
         return {{"status", "ok"}, {"state", "running"}};
     } else if (action == "stop") {
         if (!system.SendSignal(Core::System::Signal::Shutdown)) {
-            return {{"status", "error"}, {"message", "signal already pending"}};
+            return MakeErrorResponse(409, "Signal already pending", "signal_pending");
         }
         return {{"status", "ok"}, {"state", "stopped"}};
     } else if (action == "reset") {
         if (!system.SendSignal(Core::System::Signal::Reset)) {
-            return {{"status", "error"}, {"message", "signal already pending"}};
+            return MakeErrorResponse(409, "Signal already pending", "signal_pending");
         }
         return {{"status", "ok"}, {"state", "running"}};
     } else {
-        throw std::invalid_argument("unknown action: " + action);
+        return MakeErrorResponse(400, "unknown action: " + action, "invalid_action");
     }
 }
 
