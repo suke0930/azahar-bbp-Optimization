@@ -588,6 +588,8 @@ System::ResultStatus System::Init(Frontend::EmuWindow& emu_window,
             LOG_ERROR(Core, "Failed to start remote debug server on port {}",
                       Settings::values.remote_server_port.GetValue());
             remote_server.reset();
+        } else {
+            m_remote_server_enabled = true;
         }
     }
 #endif
@@ -807,11 +809,18 @@ void System::ApplySettings() {
             remote_server = std::make_unique<Remote::Server>(
                 *this, Settings::values.remote_server_port.GetValue(),
                 Settings::values.remote_server_bind_address.GetValue());
-            remote_server->Start();
+            if (!remote_server->Start()) {
+                LOG_ERROR(Core, "Failed to start remote debug server on port {}",
+                          Settings::values.remote_server_port.GetValue());
+                remote_server.reset();
+                m_remote_server_enabled = false;
+            } else {
+                m_remote_server_enabled = true;
+            }
         } else {
             remote_server.reset();
+            m_remote_server_enabled = false;
         }
-        m_remote_server_enabled = Settings::values.enable_remote_server.GetValue();
     }
 #endif
 
