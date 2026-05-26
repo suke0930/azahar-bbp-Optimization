@@ -11,7 +11,7 @@ class System;
 namespace Remote {
 
 nlohmann::json HandleEvents(Core::System& /*system*/, const nlohmann::json& /*body*/) {
-    return {{"events", nlohmann::json::array()}, {"last_id", 0}};
+    return {{"status", "not_implemented"}};
 }
 
 } // namespace Remote

@@ -120,7 +120,7 @@ https://vulkan.lunarg.com/sdk/home
 **ユースケース**: LLM エージェントがエミュレータ（Windows）とは別のマシン（Linux）
 から HTTP で操作し、自動テスト・自動探索・デバッグを行うことを想定しています。
 
-**ビルド**: CMake の `-DENABLE_REMOTE_SERVER=ON`（デフォルト ON）で有効化。
+**ビルド**: CMake の `-DENABLE_REMOTE_SERVER=ON`（デフォルト OFF）で有効化。
 LibRetro ビルドでは自動的に無効化されます。
 
 **詳細な API リファレンス**: [`docs/remote_api.md`](docs/remote_api.md)

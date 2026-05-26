@@ -11,15 +11,15 @@ class System;
 namespace Remote {
 
 nlohmann::json HandleCheatsList(Core::System& /*system*/, const nlohmann::json& /*body*/) {
-    return {{"cheats", nlohmann::json::array()}};
+    return {{"status", "not_implemented"}};
 }
 
 nlohmann::json HandleCheatsEnable(Core::System& /*system*/, const nlohmann::json& /*body*/) {
-    return {{"status", "ok"}};
+    return {{"status", "not_implemented"}};
 }
 
 nlohmann::json HandleCheatsDisable(Core::System& /*system*/, const nlohmann::json& /*body*/) {
-    return {{"status", "ok"}};
+    return {{"status", "not_implemented"}};
 }
 
 } // namespace Remote

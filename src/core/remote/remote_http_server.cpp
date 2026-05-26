@@ -37,6 +37,17 @@ bool HttpServer::Start() {
     server = std::make_unique<httplib::Server>();
     server->set_payload_max_length(1024 * 1024); // Limit request body to 1MB
 
+    server->set_pre_routing_handler([](const httplib::Request& req, httplib::Response& res) {
+        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.set_header("Access-Control-Allow-Headers", "Content-Type");
+        if (req.method == "OPTIONS") {
+            res.status = 204;
+            return httplib::Server::HandlerResponse::Handled;
+        }
+        return httplib::Server::HandlerResponse::Unhandled;
+    });
+
     auto make_handler = [this](const httplib::Request& req, httplib::Response& res) {
         RemoteRequest remote_req;
         remote_req.method = req.method;
@@ -50,7 +61,21 @@ bool HttpServer::Start() {
         }
 
         RemoteResponse remote_res;
-        handler(remote_req, remote_res);
+        try {
+            handler(remote_req, remote_res);
+        } catch (const std::exception& e) {
+            LOG_ERROR(Remote, "Unhandled exception in HTTP handler: {}", e.what());
+            res.status = 500;
+            res.set_content(R"({"error":"Internal server error","code":"internal_error"})",
+                            "application/json");
+            return;
+        } catch (...) {
+            LOG_ERROR(Remote, "Unknown unhandled exception in HTTP handler");
+            res.status = 500;
+            res.set_content(R"({"error":"Internal server error","code":"internal_error"})",
+                            "application/json");
+            return;
+        }
 
         res.status = remote_res.status_code;
         res.set_content(remote_res.body, remote_res.content_type.c_str());

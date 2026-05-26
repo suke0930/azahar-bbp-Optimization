@@ -35,7 +35,7 @@ nlohmann::json HandleStateLoad(Core::System& system, const nlohmann::json& body)
 }
 
 nlohmann::json HandleStateList(Core::System& /*system*/, const nlohmann::json& /*body*/) {
-    return {{"states", nlohmann::json::array()}};
+    return {{"status", "not_implemented"}};
 }
 
 } // namespace Remote

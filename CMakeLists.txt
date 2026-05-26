@@ -130,7 +130,7 @@ CMAKE_DEPENDENT_OPTION(ENABLE_ROOM_STANDALONE "Enable generating a standalone de
 
 option(ENABLE_WEB_SERVICE "Enable web services (telemetry, etc.)" ON)
 option(ENABLE_SCRIPTING "Enable RPC server for scripting" ON)
-option(ENABLE_REMOTE_SERVER "Enable remote debug HTTP server" ON)
+option(ENABLE_REMOTE_SERVER "Enable remote debug HTTP server" OFF)
 option(ENABLE_GDBSTUB "Enable GDB stub for emulated applications" ON)
 
 CMAKE_DEPENDENT_OPTION(ENABLE_CUBEB "Enables the cubeb audio backend" ON "NOT IOS" OFF)
