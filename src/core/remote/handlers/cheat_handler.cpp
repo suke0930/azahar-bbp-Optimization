@@ -10,8 +10,6 @@ class System;
 
 namespace Remote {
 
-namespace {
-
 nlohmann::json HandleCheatsList(Core::System& /*system*/, const nlohmann::json& /*body*/) {
     return {{"cheats", nlohmann::json::array()}};
 }
@@ -24,5 +22,4 @@ nlohmann::json HandleCheatsDisable(Core::System& /*system*/, const nlohmann::jso
     return {{"status", "ok"}};
 }
 
-} // namespace
 } // namespace Remote

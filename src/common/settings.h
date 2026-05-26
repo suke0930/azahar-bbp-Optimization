@@ -646,6 +646,8 @@ struct Values {
     Setting<bool> enable_rpc_server{false, Keys::enable_rpc_server};
     Setting<bool> enable_remote_server{false, Keys::enable_remote_server};
     Setting<u16> remote_server_port{49355, Keys::remote_server_port};
+    Setting<std::string> remote_server_bind_address{"127.0.0.1",
+                                                     Keys::remote_server_bind_address};
     Setting<bool> toggle_unique_data_console_type{false, Keys::toggle_unique_data_console_type};
     Setting<bool> break_on_unmapped_memory_access{false, Keys::break_on_unmapped_memory_access};
 

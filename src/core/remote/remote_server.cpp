@@ -9,8 +9,8 @@
 
 namespace Remote {
 
-Server::Server(Core::System& system_, u16 port_)
-    : system(system_), port(port_) {}
+Server::Server(Core::System& system_, u16 port_, std::string bind_address_)
+    : system(system_), port(port_), bind_address(std::move(bind_address_)) {}
 
 Server::~Server() {
     Stop();
@@ -21,7 +21,8 @@ void Server::Start() {
     http_server = std::make_unique<HttpServer>(
         port, [this](const RemoteRequest& req, RemoteResponse& res) {
             request_dispatcher->Dispatch(req, res);
-        });
+        },
+        bind_address);
     http_server->Start();
 }
 

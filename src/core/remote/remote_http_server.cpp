@@ -12,8 +12,8 @@
 
 namespace Remote {
 
-HttpServer::HttpServer(u16 port_, RequestHandler handler_)
-    : port(port_), handler(std::move(handler_)) {}
+HttpServer::HttpServer(u16 port_, RequestHandler handler_, std::string bind_address_)
+    : port(port_), bind_address(std::move(bind_address_)), handler(std::move(handler_)) {}
 
 HttpServer::~HttpServer() {
     Stop();
@@ -47,16 +47,17 @@ void HttpServer::Start() {
     server_thread = std::jthread([this](std::stop_token) {
         Common::SetCurrentThreadName("RemoteHttp");
         LOG_INFO(Remote, "HTTP server listening on port {}", port);
-        if (!server->listen("0.0.0.0", port)) {
+        if (!server->listen(bind_address, port)) {
             LOG_ERROR(Remote, "HTTP server failed to listen on port {}", port);
         }
     });
 }
 
 void HttpServer::Stop() {
-    if (server) {
-        server->stop();
+    if (!server) {
+        return;
     }
+    server->stop();
     server_thread = {};
     server.reset();
 }

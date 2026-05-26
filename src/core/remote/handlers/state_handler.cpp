@@ -9,19 +9,21 @@
 
 namespace Remote {
 
-namespace {
-
 nlohmann::json HandleStateSave(Core::System& system, const nlohmann::json& body) {
     const int slot = body.value("slot", 0);
     const int clamped = std::clamp(slot, 0, 10);
-    system.SendSignal(Core::System::Signal::Save, clamped);
+    if (!system.SendSignal(Core::System::Signal::Save, clamped)) {
+        return {{"status", "error"}, {"message", "signal already pending"}};
+    }
     return {{"status", "ok"}, {"slot", clamped}};
 }
 
 nlohmann::json HandleStateLoad(Core::System& system, const nlohmann::json& body) {
     const int slot = body.value("slot", 0);
     const int clamped = std::clamp(slot, 0, 10);
-    system.SendSignal(Core::System::Signal::Load, clamped);
+    if (!system.SendSignal(Core::System::Signal::Load, clamped)) {
+        return {{"status", "error"}, {"message", "signal already pending"}};
+    }
     return {{"status", "ok"}, {"slot", clamped}};
 }
 
@@ -29,5 +31,4 @@ nlohmann::json HandleStateList(Core::System& /*system*/, const nlohmann::json& /
     return {{"states", nlohmann::json::array()}};
 }
 
-} // namespace
 } // namespace Remote

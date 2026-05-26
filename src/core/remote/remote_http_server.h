@@ -22,7 +22,8 @@ class HttpServer {
 public:
     using RequestHandler = std::function<void(const RemoteRequest&, RemoteResponse&)>;
 
-    explicit HttpServer(u16 port, RequestHandler handler);
+    explicit HttpServer(u16 port, RequestHandler handler,
+                        std::string bind_address = "127.0.0.1");
     ~HttpServer();
 
     void Start();
@@ -30,6 +31,7 @@ public:
 
 private:
     u16 port;
+    std::string bind_address;
     RequestHandler handler;
     std::unique_ptr<httplib::Server> server;
     std::jthread server_thread;

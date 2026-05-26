@@ -574,7 +574,8 @@ System::ResultStatus System::Init(Frontend::EmuWindow& emu_window,
 #ifdef ENABLE_REMOTE_SERVER
     if (Settings::values.enable_remote_server.GetValue()) {
         remote_server = std::make_unique<Remote::Server>(
-            *this, Settings::values.remote_server_port.GetValue());
+            *this, Settings::values.remote_server_port.GetValue(),
+            Settings::values.remote_server_bind_address.GetValue());
         remote_server->Start();
     }
 #endif

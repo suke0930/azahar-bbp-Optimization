@@ -117,6 +117,7 @@ foreach(KEY IN ITEMS
     "enable_rpc_server"
     "enable_remote_server"
     "remote_server_port"
+    "remote_server_bind_address"
     "log_filter"
     "log_regex_filter"
     "toggle_unique_data_console_type"

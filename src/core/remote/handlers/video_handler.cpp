@@ -10,11 +10,8 @@ class System;
 
 namespace Remote {
 
-namespace {
-
 nlohmann::json HandleVideoScreenshot(Core::System& /*system*/, const nlohmann::json& /*body*/) {
     return {{"status", "not_implemented"}};
 }
 
-} // namespace
 } // namespace Remote

@@ -2,12 +2,12 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include "common/logging/log.h"
 #include "core/remote/remote_handler.h"
 
 namespace Remote {
 
-// Handler declarations (defined in handlers/*.cpp)
-namespace {
+// Handler declarations (defined in handlers/*.cpp with external linkage)
 nlohmann::json HandleEmulatorControl(Core::System& system, const nlohmann::json& body);
 nlohmann::json HandleEmulatorSpeed(Core::System& system, const nlohmann::json& body);
 nlohmann::json HandleEmulatorStatus(Core::System& system, const nlohmann::json& body);
@@ -19,7 +19,6 @@ nlohmann::json HandleCheatsEnable(Core::System& system, const nlohmann::json& bo
 nlohmann::json HandleCheatsDisable(Core::System& system, const nlohmann::json& body);
 nlohmann::json HandleEvents(Core::System& system, const nlohmann::json& body);
 nlohmann::json HandleVideoScreenshot(Core::System& system, const nlohmann::json& body);
-} // namespace
 
 RequestDispatcher::RequestDispatcher(Core::System& system) : system(system) {
     RegisterHandlers();
@@ -53,13 +52,24 @@ void RequestDispatcher::Dispatch(const RemoteRequest& req, RemoteResponse& res) 
             nlohmann::json response_json = it->second(system, request_body);
             res.body = response_json.dump();
             res.status_code = 200;
-        } catch (const std::exception& e) {
-            res.status_code = 500;
+        } catch (const nlohmann::json::parse_error& e) {
+            res.status_code = 400;
+            res.body = nlohmann::json{{"error", "invalid json"}}.dump();
+        } catch (const std::invalid_argument& e) {
+            res.status_code = 400;
             res.body = nlohmann::json{{"error", e.what()}}.dump();
+        } catch (const std::exception& e) {
+            LOG_ERROR(Remote, "Handler exception: {}", e.what());
+            res.status_code = 500;
+            res.body = nlohmann::json{{"error", "internal server error"}}.dump();
         }
     } else {
         res.status_code = 404;
-        res.body = nlohmann::json{{"error", "not_found"}}.dump();
+        try {
+            res.body = nlohmann::json{{"error", "not_found"}}.dump();
+        } catch (...) {
+            res.body = R"({"error":"not_found"})";
+        }
     }
 }
 

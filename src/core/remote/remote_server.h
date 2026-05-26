@@ -18,7 +18,8 @@ class RequestDispatcher;
 
 class Server {
 public:
-    explicit Server(Core::System& system, u16 port);
+    explicit Server(Core::System& system, u16 port,
+                    std::string bind_address = "127.0.0.1");
     ~Server();
 
     void Start();
@@ -27,6 +28,7 @@ public:
 private:
     Core::System& system;
     u16 port;
+    std::string bind_address;
     std::unique_ptr<HttpServer> http_server;
     std::unique_ptr<RequestDispatcher> request_dispatcher;
 };
