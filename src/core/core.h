@@ -20,6 +20,10 @@
 #include "core/movie.h"
 #include "core/perf_stats.h"
 
+#ifdef ENABLE_REMOTE_SERVER
+#include "core/remote/remote_server.h"
+#endif
+
 namespace Frontend {
 class EmuWindow;
 class ImageInterface;
@@ -484,6 +488,10 @@ private:
 #ifdef ENABLE_SCRIPTING
     /// RPC Server for scripting support
     std::unique_ptr<RPC::Server> rpc_server;
+#endif
+
+#ifdef ENABLE_REMOTE_SERVER
+    std::unique_ptr<Remote::Server> remote_server;
 #endif
 
     std::unique_ptr<Service::FS::ArchiveManager> archive_manager;

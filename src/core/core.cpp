@@ -51,6 +51,11 @@
 #ifdef ENABLE_SCRIPTING
 #include "core/rpc/server.h"
 #endif
+
+#ifdef ENABLE_REMOTE_SERVER
+#include "core/remote/remote_server.h"
+#endif
+
 #include "network/network.h"
 #include "video_core/bbp_compat.h"
 #include "video_core/custom_textures/custom_tex_manager.h"
@@ -566,6 +571,14 @@ System::ResultStatus System::Init(Frontend::EmuWindow& emu_window,
     }
 #endif
 
+#ifdef ENABLE_REMOTE_SERVER
+    if (Settings::values.enable_remote_server.GetValue()) {
+        remote_server = std::make_unique<Remote::Server>(
+            *this, Settings::values.remote_server_port.GetValue());
+        remote_server->Start();
+    }
+#endif
+
     service_manager = std::make_unique<Service::SM::ServiceManager>(*this);
     archive_manager = std::make_unique<Service::FS::ArchiveManager>(*this);
 
@@ -711,6 +724,9 @@ void System::Shutdown(bool is_deserializing) {
     custom_tex_manager.reset();
 #ifdef ENABLE_SCRIPTING
     rpc_server.reset();
+#endif
+#ifdef ENABLE_REMOTE_SERVER
+    remote_server.reset();
 #endif
     archive_manager.reset();
     service_manager.reset();

@@ -115,6 +115,8 @@ foreach(KEY IN ITEMS
     "gdbstub_port"
     "instant_debug_log"
     "enable_rpc_server"
+    "enable_remote_server"
+    "remote_server_port"
     "log_filter"
     "log_regex_filter"
     "toggle_unique_data_console_type"
