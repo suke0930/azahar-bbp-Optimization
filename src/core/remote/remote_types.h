@@ -4,12 +4,9 @@
 
 #pragma once
 
-#include <map>
 #include <string>
 
 #include <json.hpp>
-
-#include "common/common_types.h"
 
 namespace Remote {
 
@@ -17,20 +14,12 @@ struct RemoteRequest {
     std::string method;
     std::string path;
     std::string body;
-    std::map<std::string, std::string> query_params;
 };
 
 struct RemoteResponse {
     int status_code = 200;
     std::string body;
     std::string content_type = "application/json";
-};
-
-struct RemoteEvent {
-    u64 id;
-    std::string timestamp;
-    std::string type;
-    nlohmann::json data;
 };
 
 inline RemoteResponse BuildJsonResponse(const nlohmann::json& data, int status = 200) {

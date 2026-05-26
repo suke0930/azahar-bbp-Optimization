@@ -29,20 +29,20 @@ RequestDispatcher::RequestDispatcher(Core::System& system) : system(system) {
 }
 
 void RequestDispatcher::RegisterHandlers() {
-    routes[{std::string("POST"), std::string("/api/v1/emulator/control")}] = HandleEmulatorControl;
-    routes[{std::string("POST"), std::string("/api/v1/emulator/speed")}] = HandleEmulatorSpeed;
-    routes[{std::string("GET"), std::string("/api/v1/emulator/status")}] = HandleEmulatorStatus;
+    routes[{"POST", "/api/v1/emulator/control"}] = HandleEmulatorControl;
+    routes[{"POST", "/api/v1/emulator/speed"}] = HandleEmulatorSpeed;
+    routes[{"GET", "/api/v1/emulator/status"}] = HandleEmulatorStatus;
 
-    routes[{std::string("POST"), std::string("/api/v1/state/save")}] = HandleStateSave;
-    routes[{std::string("POST"), std::string("/api/v1/state/load")}] = HandleStateLoad;
-    routes[{std::string("GET"), std::string("/api/v1/state/list")}] = HandleStateList;
+    routes[{"POST", "/api/v1/state/save"}] = HandleStateSave;
+    routes[{"POST", "/api/v1/state/load"}] = HandleStateLoad;
+    routes[{"GET", "/api/v1/state/list"}] = HandleStateList;
 
-    routes[{std::string("GET"), std::string("/api/v1/cheats/list")}] = HandleCheatsList;
-    routes[{std::string("POST"), std::string("/api/v1/cheats/enable")}] = HandleCheatsEnable;
-    routes[{std::string("POST"), std::string("/api/v1/cheats/disable")}] = HandleCheatsDisable;
+    routes[{"GET", "/api/v1/cheats/list"}] = HandleCheatsList;
+    routes[{"POST", "/api/v1/cheats/enable"}] = HandleCheatsEnable;
+    routes[{"POST", "/api/v1/cheats/disable"}] = HandleCheatsDisable;
 
-    routes[{std::string("GET"), std::string("/api/v1/events")}] = HandleEvents;
-    routes[{std::string("GET"), std::string("/api/v1/video/screenshot")}] = HandleVideoScreenshot;
+    routes[{"GET", "/api/v1/events"}] = HandleEvents;
+    routes[{"GET", "/api/v1/video/screenshot"}] = HandleVideoScreenshot;
 }
 
 void RequestDispatcher::Dispatch(const RemoteRequest& req, RemoteResponse& res) {

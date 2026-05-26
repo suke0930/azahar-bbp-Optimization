@@ -56,9 +56,6 @@ bool HttpServer::Start() {
             remote_req.path = remote_req.path.substr(0, pos);
         }
         remote_req.body = req.body;
-        for (const auto& [key, value] : req.params) {
-            remote_req.query_params[key] = value;
-        }
 
         RemoteResponse remote_res;
         try {

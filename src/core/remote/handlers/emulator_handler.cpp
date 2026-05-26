@@ -6,7 +6,6 @@
 
 #include <fmt/format.h>
 #include <json.hpp>
-#include "common/settings.h"
 #include "core/core.h"
 #include "core/remote/remote_handler.h"
 
@@ -43,11 +42,11 @@ nlohmann::json HandleEmulatorSpeed(Core::System& system, const nlohmann::json& b
         return MakeErrorResponse(400, "Emulator is not running", "not_powered_on");
     }
     const int speed_percent = body.value("speed_percent", 100);
-    const int clamped = std::clamp(speed_percent, 1, 1000);
-    if (!system.SendSignal(Core::System::Signal::RemoteSpeedChange, static_cast<u32>(clamped))) {
+    const int clamped_speed = std::clamp(speed_percent, 1, 1000);
+    if (!system.SendSignal(Core::System::Signal::RemoteSpeedChange, static_cast<u32>(clamped_speed))) {
         return MakeErrorResponse(409, "Signal already pending", "signal_pending");
     }
-    return {{"status", "ok"}, {"current_speed", clamped}};
+    return {{"status", "ok"}, {"current_speed", clamped_speed}};
 }
 
 nlohmann::json HandleEmulatorStatus(Core::System& system, const nlohmann::json& /*body*/) {
