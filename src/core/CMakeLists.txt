@@ -541,6 +541,7 @@ if (ENABLE_REMOTE_SERVER)
         remote/handlers/events_handler.cpp
         remote/handlers/video_handler.cpp
     )
+    target_link_libraries(citra_core PRIVATE json-headers)
 endif()
 
 if (ENABLE_GDBSTUB)
