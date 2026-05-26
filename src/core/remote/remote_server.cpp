@@ -2,6 +2,7 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include "common/logging/log.h"
 #include "core/core.h"
 #include "core/remote/remote_http_server.h"
 #include "core/remote/remote_handler.h"
@@ -16,14 +17,20 @@ Server::~Server() {
     Stop();
 }
 
-void Server::Start() {
+bool Server::Start() {
     request_dispatcher = std::make_unique<RequestDispatcher>(system);
     http_server = std::make_unique<HttpServer>(
         port, [this](const RemoteRequest& req, RemoteResponse& res) {
             request_dispatcher->Dispatch(req, res);
         },
         bind_address);
-    http_server->Start();
+    if (!http_server->Start()) {
+        LOG_ERROR(Remote, "Failed to start HTTP server on port {}", port);
+        http_server.reset();
+        request_dispatcher.reset();
+        return false;
+    }
+    return true;
 }
 
 void Server::Stop() {

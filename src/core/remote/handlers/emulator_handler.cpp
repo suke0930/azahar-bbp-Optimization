@@ -16,9 +16,11 @@ nlohmann::json HandleEmulatorControl(Core::System& system, const nlohmann::json&
     const std::string action = body.value("action", "");
 
     if (action == "pause") {
+        if (!system.IsPoweredOn()) return MakeErrorResponse(400, "Emulator is not running", "not_powered_on");
         system.frame_limiter.SetFrameAdvancing(true);
         return {{"status", "ok"}, {"state", "paused"}};
     } else if (action == "resume") {
+        if (!system.IsPoweredOn()) return MakeErrorResponse(400, "Emulator is not running", "not_powered_on");
         system.frame_limiter.SetFrameAdvancing(false);
         return {{"status", "ok"}, {"state", "running"}};
     } else if (action == "stop") {
@@ -37,6 +39,9 @@ nlohmann::json HandleEmulatorControl(Core::System& system, const nlohmann::json&
 }
 
 nlohmann::json HandleEmulatorSpeed(Core::System& system, const nlohmann::json& body) {
+    if (!system.IsPoweredOn()) {
+        return MakeErrorResponse(400, "Emulator is not running", "not_powered_on");
+    }
     const int speed_percent = body.value("speed_percent", 100);
     const int clamped = std::clamp(speed_percent, 1, 1000);
     if (!system.SendSignal(Core::System::Signal::RemoteSpeedChange, static_cast<u32>(clamped))) {

@@ -26,7 +26,7 @@ public:
                         std::string bind_address = "127.0.0.1");
     ~HttpServer();
 
-    void Start();
+    [[nodiscard]] bool Start();
     void Stop();
 
 private:

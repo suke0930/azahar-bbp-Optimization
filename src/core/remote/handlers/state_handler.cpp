@@ -11,6 +11,9 @@
 namespace Remote {
 
 nlohmann::json HandleStateSave(Core::System& system, const nlohmann::json& body) {
+    if (!system.IsPoweredOn()) {
+        return MakeErrorResponse(400, "Emulator is not running", "not_powered_on");
+    }
     const int slot = body.value("slot", 0);
     const int clamped = std::clamp(slot, 0, 10);
     if (!system.SendSignal(Core::System::Signal::Save, clamped)) {
@@ -20,6 +23,9 @@ nlohmann::json HandleStateSave(Core::System& system, const nlohmann::json& body)
 }
 
 nlohmann::json HandleStateLoad(Core::System& system, const nlohmann::json& body) {
+    if (!system.IsPoweredOn()) {
+        return MakeErrorResponse(400, "Emulator is not running", "not_powered_on");
+    }
     const int slot = body.value("slot", 0);
     const int clamped = std::clamp(slot, 0, 10);
     if (!system.SendSignal(Core::System::Signal::Load, clamped)) {

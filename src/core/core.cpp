@@ -584,7 +584,11 @@ System::ResultStatus System::Init(Frontend::EmuWindow& emu_window,
         remote_server = std::make_unique<Remote::Server>(
             *this, Settings::values.remote_server_port.GetValue(),
             Settings::values.remote_server_bind_address.GetValue());
-        remote_server->Start();
+        if (!remote_server->Start()) {
+            LOG_ERROR(Core, "Failed to start remote debug server on port {}",
+                      Settings::values.remote_server_port.GetValue());
+            remote_server.reset();
+        }
     }
 #endif
 

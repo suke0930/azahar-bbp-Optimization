@@ -22,7 +22,7 @@ public:
                     std::string bind_address = "127.0.0.1");
     ~Server();
 
-    void Start();
+    [[nodiscard]] bool Start();
     void Stop();
 
 private:

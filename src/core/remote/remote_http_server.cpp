@@ -2,6 +2,8 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <chrono>
+#include <future>
 #include <utility>
 
 #include <httplib.h>
@@ -19,7 +21,19 @@ HttpServer::~HttpServer() {
     Stop();
 }
 
-void HttpServer::Start() {
+static bool IsValidBindAddress(const std::string& addr) {
+    return addr == "127.0.0.1" || addr == "::1" || addr == "localhost";
+}
+
+bool HttpServer::Start() {
+    if (!IsValidBindAddress(bind_address)) {
+        LOG_ERROR(Remote,
+                  "Invalid bind address '{}': only loopback addresses (127.0.0.1, ::1, localhost) "
+                  "are allowed",
+                  bind_address);
+        return false;
+    }
+
     server = std::make_unique<httplib::Server>();
     server->set_payload_max_length(1024 * 1024); // Limit request body to 1MB
 
@@ -45,13 +59,27 @@ void HttpServer::Start() {
     server->Get(".*", make_handler);
     server->Post(".*", make_handler);
 
-    server_thread = std::jthread([this](std::stop_token) {
+    std::promise<bool> start_promise;
+    auto start_future = start_promise.get_future();
+
+    server_thread = std::jthread([this, start_promise = std::move(start_promise)](
+                                     std::stop_token) mutable {
         Common::SetCurrentThreadName("RemoteHttp");
         LOG_INFO(Remote, "HTTP server listening on port {}", port);
-        if (!server->listen(bind_address, port)) {
+        bool listen_ok = server->listen(bind_address, port);
+        if (!listen_ok) {
             LOG_ERROR(Remote, "HTTP server failed to listen on port {}", port);
         }
+        start_promise.set_value(listen_ok);
     });
+
+    auto status = start_future.wait_for(std::chrono::seconds(5));
+    if (status == std::future_status::timeout) {
+        LOG_ERROR(Remote, "HTTP server startup timed out on port {}", port);
+        server->stop();
+        return false;
+    }
+    return start_future.get();
 }
 
 void HttpServer::Stop() {
