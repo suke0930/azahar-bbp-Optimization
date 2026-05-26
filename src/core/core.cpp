@@ -146,6 +146,12 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         save_state_request_status = SaveStateStatus::SAVING;
         break;
     }
+    case Signal::RemoteSpeedChange: {
+        const int speed = std::clamp(static_cast<int>(param), 1, 1000);
+        Settings::values.frame_limit.SetValue(static_cast<double>(speed));
+        ApplySettings();
+        break;
+    }
     default:
         break;
     }
@@ -454,13 +460,15 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
     kernel->SetCurrentProcess(process);
     VideoCore::BbpCompat::SetCurrentProgramId(process && process->codeset ? process->codeset->program_id
                                                                           : 0);
-    title_id = 0;
-    if (app_loader->ReadProgramId(title_id) != Loader::ResultStatus::Success) {
+    title_id.store(0);
+    u64 loaded_title_id = 0;
+    if (app_loader->ReadProgramId(loaded_title_id) != Loader::ResultStatus::Success) {
         LOG_ERROR(Core, "Failed to find title id for ROM (Error {})",
                   static_cast<u32>(load_result));
     }
+    title_id.store(loaded_title_id);
 
-    cheat_engine.LoadCheatFile(title_id);
+    cheat_engine.LoadCheatFile(title_id.load());
     cheat_engine.Connect(process->process_id);
 
     perf_stats = std::make_unique<PerfStats>(title_id);
@@ -712,7 +720,7 @@ void System::Shutdown(bool is_deserializing) {
     is_powered_on = false;
 
     gpu.reset();
-    title_id = 0;
+    title_id.store(0);
     VideoCore::BbpCompat::SetCurrentProgramId(0);
     if (!is_deserializing) {
         lle_modules.clear();
@@ -787,6 +795,20 @@ void System::ApplySettings() {
 #ifdef ENABLE_GDBSTUB
     GDBStub::SetServerPort(Settings::values.gdbstub_port.GetValue());
     GDBStub::ToggleServer(Settings::values.use_gdbstub.GetValue());
+#endif
+
+#ifdef ENABLE_REMOTE_SERVER
+    if (m_remote_server_enabled != Settings::values.enable_remote_server.GetValue()) {
+        if (Settings::values.enable_remote_server.GetValue()) {
+            remote_server = std::make_unique<Remote::Server>(
+                *this, Settings::values.remote_server_port.GetValue(),
+                Settings::values.remote_server_bind_address.GetValue());
+            remote_server->Start();
+        } else {
+            remote_server.reset();
+        }
+        m_remote_server_enabled = Settings::values.enable_remote_server.GetValue();
+    }
 #endif
 
     if (gpu) {

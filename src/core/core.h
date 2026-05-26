@@ -142,7 +142,7 @@ public:
     /// Shutdown and then load again
     void Reset();
 
-    enum class Signal : u32 { None, Shutdown, Reset, Save, Load };
+    enum class Signal : u32 { None, Shutdown, Reset, Save, Load, RemoteSpeedChange };
 
     bool SendSignal(Signal signal, u32 param = 0);
 
@@ -325,7 +325,7 @@ public:
     }
 
     [[nodiscard]] u64 GetTitleId() const {
-        return title_id;
+        return title_id.load();
     }
 
     /// Frontend Applets
@@ -520,7 +520,8 @@ private:
     std::string m_filepath;
     std::string m_chainloadpath;
     std::optional<u8> m_mem_mode;
-    u64 title_id = 0;
+    std::atomic<u64> title_id{0};
+    bool m_remote_server_enabled{};
 
     std::mutex signal_mutex;
     Signal current_signal;

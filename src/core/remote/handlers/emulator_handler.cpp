@@ -38,9 +38,10 @@ nlohmann::json HandleEmulatorControl(Core::System& system, const nlohmann::json&
 
 nlohmann::json HandleEmulatorSpeed(Core::System& system, const nlohmann::json& body) {
     const int speed_percent = body.value("speed_percent", 100);
-    const int clamped = std::clamp(speed_percent, 0, 1000);
-    Settings::values.frame_limit.SetValue(static_cast<double>(clamped));
-    system.ApplySettings();
+    const int clamped = std::clamp(speed_percent, 1, 1000);
+    if (!system.SendSignal(Core::System::Signal::RemoteSpeedChange, static_cast<u32>(clamped))) {
+        return MakeErrorResponse(409, "Signal already pending", "signal_pending");
+    }
     return {{"status", "ok"}, {"current_speed", clamped}};
 }
 
