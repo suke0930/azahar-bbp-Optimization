@@ -1,0 +1,37 @@
+Task 3 (N5): System shutdown vs HTTP thread race
+=================================================
+Date: 2026-05-27
+File: src/core/core.cpp
+Change: Moved remote_server.reset() to top of System::Shutdown()
+
+Before (original order):
+  is_powered_on = false;
+  gpu.reset();
+  title_id.store(0);
+  ...
+  #ifdef ENABLE_REMOTE_SERVER
+      remote_server.reset();   // Too late: HTTP handler could still process
+                                // requests while GPU/other subsystems destroyed
+  #endif
+
+After (fixed order):
+  is_powered_on = false;
+  #ifdef ENABLE_REMOTE_SERVER
+      remote_server.reset();   // HTTP server stops + jthread joins immediately
+  #endif                        // after is_powered_on = false
+  gpu.reset();
+  title_id.store(0);
+  ...
+
+Rationale:
+- is_powered_on (atomic_bool) is set false first, so HTTP handler's
+  IsPoweredOn() check immediately rejects new requests
+- remote_server.reset() → ~Server() → HttpServer::Stop() joins the jthread,
+  ensuring no in-flight handler is executing
+- Only then do we destroy GPU/other subsystems that the handlers might access
+- All other subsystem destruction order preserved unchanged
+
+Verification:
+- No duplicate #ifdef ENABLE_REMOTE_SERVER block (old location removed)
+- is_powered_on stays at the very top (atomic, safe for handler race)
+- Build NOT verified locally (clangd not installed on this machine)

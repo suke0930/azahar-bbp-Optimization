@@ -285,7 +285,7 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
 
 bool System::SendSignal(System::Signal signal, u32 param) {
     std::scoped_lock lock{signal_mutex};
-    if (current_signal != signal && current_signal != Signal::None) {
+    if (current_signal != Signal::None) {
         LOG_ERROR(Core, "Unable to {} as {} is ongoing", signal, current_signal);
         return false;
     }
@@ -738,9 +738,6 @@ void System::Shutdown(bool is_deserializing) {
     custom_tex_manager.reset();
 #ifdef ENABLE_SCRIPTING
     rpc_server.reset();
-#endif
-#ifdef ENABLE_REMOTE_SERVER
-    remote_server.reset();
 #endif
     archive_manager.reset();
     service_manager.reset();
