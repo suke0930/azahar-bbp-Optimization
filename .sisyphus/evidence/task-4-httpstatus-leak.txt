@@ -1,0 +1,30 @@
+QA Evidence: Task 4 - _http_status leak fix
+=============================================
+File: src/core/remote/remote_handler.cpp
+
+Fix applied: Option A - Added SetErrorResponse helper function.
+All error paths now construct clean JSON bodies without _http_status.
+
+Scenario 1: 全エラーパスで _http_status 漏洩なし
+  - grep for dump() shows 2 calls:
+    1. Line 18: SetErrorResponse() internal — body has NO _http_status (clean {{"error","code"}})
+    2. Line 72: Success path — _http_status is erased at line 68 before dump()
+  - No other dump() calls exist. All error paths flow through SetErrorResponse.
+
+Scenario 2: _http_status 残留がない
+  - grep for _http_status shows 5 occurrences, all legitimate:
+    1. Line 11: MakeErrorResponse() — factory still includes _http_status for success path
+    2. Line 65: Comment explaining the mechanism
+    3. Line 66: contains("_http_status") check in success path
+    4. Line 67: extract status code in success path
+    5. Line 68: erase("_http_status") in success path
+  - Zero _http_status references exist in SetErrorResponse() body construction
+
+Changed paths:
+  Line 14-19: Added SetErrorResponse() helper (new)
+  Line 73-75: parse_error catch → SetErrorResponse(res, 400, ...)
+  Line 76-78: type_error catch → SetErrorResponse(res, 400, ...)
+  Line 79-81: invalid_argument catch → SetErrorResponse(res, 400, ...)
+  Line 82-84: exception catch → SetErrorResponse(res, 500, ...)
+  Line 87:    404 path → SetErrorResponse(res, 404, ...)
+Success path (lines 56-72): UNCHANGED ✓

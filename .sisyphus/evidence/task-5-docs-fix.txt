@@ -1,0 +1,9 @@
+Scenario: 全修正確認
+  Steps:
+    1. grep -i "デフォルト.*ON" remote_api.md → 0件 ✅
+    2. grep "409" remote_api.md → signal pendingに言及 ✅
+    3. grep "0.*無制限\|0.*unlimited" remote_api.md → 0件 ✅
+    4. grep "not_implemented" remote_api.md → 6件（期待: 5件以上）✅
+    5. grep "Access-Control-Allow-Origin" remote_api.md → 存在 ✅
+  Expected: 旧矛盾記述が削除され、実装と一致 ✅
+  Result: PASS

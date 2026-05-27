@@ -1,0 +1,13 @@
+Scenario: type_error catch節が存在
+  Steps:
+    1. grep "type_error" remote_handler.cpp → catch節が存在 ✓ (line 69)
+    2. Read 64-76行 → catch順序が parse_error → type_error → invalid_argument ✓
+    3. 400ステータスコードが設定されていることを確認 ✓ (line 71)
+    4. "Invalid field type in JSON" メッセージ確認 ✓ (line 72)
+  Expected: type_error catchが存在し、400を返す ✓
+
+Scenario: 500フォールスルー防止
+  Steps:
+    1. type_error catch後の std::exception catch が500を返すことを確認 ✓ (line 78)
+    2. type_errorが std::exception catchより手前にあることを確認 ✓ (line 69 before line 76)
+  Expected: type_errorが500にフォールスルーしない ✓

@@ -11,6 +11,13 @@ nlohmann::json MakeErrorResponse(int status, const std::string& message, const s
     return {{"error", message}, {"code", code}, {"_http_status", status}};
 }
 
+static void SetErrorResponse(RemoteResponse& res, int status, const std::string& message,
+                             const std::string& code) {
+    res.status_code = status;
+    nlohmann::json body = {{"error", message}, {"code", code}};
+    res.body = body.dump();
+}
+
 // Handler declarations (defined in handlers/*.cpp with external linkage)
 nlohmann::json HandleEmulatorControl(Core::System& system, const nlohmann::json& body);
 nlohmann::json HandleEmulatorSpeed(Core::System& system, const nlohmann::json& body);
@@ -64,19 +71,20 @@ void RequestDispatcher::Dispatch(const RemoteRequest& req, RemoteResponse& res) 
             }
             res.body = response_json.dump();
         } catch (const nlohmann::json::parse_error& e) {
-            res.status_code = 400;
-            res.body = MakeErrorResponse(400, "Invalid JSON", "invalid_json").dump();
+            LOG_ERROR(Remote, "JSON parse error: {}", e.what());
+            SetErrorResponse(res, 400, "Invalid JSON", "invalid_json");
+        } catch (const nlohmann::json::type_error& e) {
+            LOG_ERROR(Remote, "JSON type error: {}", e.what());
+            SetErrorResponse(res, 400, "Invalid field type in JSON", "invalid_field_type");
         } catch (const std::invalid_argument& e) {
-            res.status_code = 400;
-            res.body = MakeErrorResponse(400, e.what(), "invalid_argument").dump();
+            LOG_ERROR(Remote, "Invalid argument: {}", e.what());
+            SetErrorResponse(res, 400, e.what(), "invalid_argument");
         } catch (const std::exception& e) {
             LOG_ERROR(Remote, "Handler exception: {}", e.what());
-            res.status_code = 500;
-            res.body = MakeErrorResponse(500, "Internal server error", "internal_error").dump();
+            SetErrorResponse(res, 500, "Internal server error", "internal_error");
         }
     } else {
-        res.status_code = 404;
-        res.body = MakeErrorResponse(404, "Not found", "not_found").dump();
+        SetErrorResponse(res, 404, "Not found", "not_found");
     }
 }
 

@@ -9,8 +9,9 @@ Azahar にリモートデバッグ用の HTTP REST API を追加します。
 
 - **プロトコル**: HTTP REST（JSON リクエスト/レスポンス）
 - **セキュリティ**: ローカル専用。認証・暗号化なし（127.0.0.1 バインドがデフォルト）
+- **CORS**: 全レスポンスに `Access-Control-Allow-Origin: *` を設定（`remote_http_server.cpp` の pre_routing_handler）
 - **依存ライブラリ**: cpp-httplib v0.14.0 / nlohmann/json v3.9.0（両方とも bundled、新規外部依存なし）
-- **ビルドフラグ**: `ENABLE_REMOTE_SERVER`（CMake option、デフォルト ON）
+- **ビルドフラグ**: `ENABLE_REMOTE_SERVER`（CMake option、デフォルト OFF）
 - **LibRetro**: 非対応（`_LIBRETRO_INCOMPATIBLE_OPTIONS` に含む）
 
 ## ビルド設定
@@ -60,8 +61,10 @@ cmake --build build
 {"error": "unknown action: hoge"}
 ```
 
-**注意**: すでに別のシグナルが pending の場合、`SendSignal` は `false` を返し、
-`{"status":"error","message":"signal already pending"}` を返します（HTTP 200）。
+**エラーレスポンス (409):**
+```json
+{"error": "signal already pending", "code": "signal_pending"}
+```
 
 ---
 
@@ -74,7 +77,7 @@ cmake --build build
 {"speed_percent": 200}
 ```
 
-- `speed_percent`: 0–1000（デフォルト 100）。0 = 無制限。
+- `speed_percent`: 1–1000（デフォルト 100、範囲外は clamp）。
 
 **成功レスポンス (200):**
 ```json
@@ -146,7 +149,7 @@ cmake --build build
 
 **成功レスポンス (200):**
 ```json
-{"states": []}
+{"status": "not_implemented"}
 ```
 
 ---
@@ -159,7 +162,7 @@ cmake --build build
 
 **成功レスポンス (200):**
 ```json
-{"cheats": []}
+{"status": "not_implemented"}
 ```
 
 #### `POST /api/v1/cheats/enable`
@@ -168,7 +171,7 @@ cmake --build build
 
 **成功レスポンス (200):**
 ```json
-{"status": "ok"}
+{"status": "not_implemented"}
 ```
 
 #### `POST /api/v1/cheats/disable`
@@ -177,7 +180,7 @@ cmake --build build
 
 **成功レスポンス (200):**
 ```json
-{"status": "ok"}
+{"status": "not_implemented"}
 ```
 
 ---
@@ -190,7 +193,7 @@ cmake --build build
 
 **成功レスポンス (200):**
 ```json
-{"events": [], "last_id": 0}
+{"status": "not_implemented"}
 ```
 
 ---
@@ -214,8 +217,8 @@ cmake --build build
    400 = リクエスト不正、404 = パス未登録、500 = サーバー内部エラー。
    200 でも body に `"status":"error"` が含まれる場合があります（`action` 不明など）。
 
-2. **速度設定**: `speed_percent = 0` は「無制限」（フレームリミット解除）を意味します。
-   pause ではありません。
+2. **速度設定**: `speed_percent` は 1–1000 の範囲です（デフォルト 100）。
+   範囲外は clamp されます。
 
 3. **非同期動作**: `stop` / `reset` / `save` / `load` は `SendSignal` 経由でシグナルを
    キューに送るだけです。実際の処理は次の `RunLoop` イテレーションで行われます。
@@ -239,7 +242,7 @@ cmake --build build
 ## ビルド設定リファレンス
 
 ```cmake
-option(ENABLE_REMOTE_SERVER "Enable remote debug HTTP server" ON)
+option(ENABLE_REMOTE_SERVER "Enable remote debug HTTP server" OFF)
 ```
 
 `src/core/CMakeLists.txt` で条件付きコンパイル:

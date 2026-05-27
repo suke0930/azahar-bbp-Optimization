@@ -3,7 +3,6 @@
 // Refer to the license.txt file included.
 
 #include <chrono>
-#include <future>
 #include <utility>
 
 #include <httplib.h>
@@ -81,27 +80,30 @@ bool HttpServer::Start() {
     server->Get(".*", make_handler);
     server->Post(".*", make_handler);
 
-    std::promise<bool> start_promise;
-    auto start_future = start_promise.get_future();
-
-    server_thread = std::jthread([this, start_promise = std::move(start_promise)](
-                                     std::stop_token) mutable {
-        Common::SetCurrentThreadName("RemoteHttp");
-        LOG_INFO(Remote, "HTTP server listening on port {}", port);
-        bool listen_ok = server->listen(bind_address, port);
-        if (!listen_ok) {
-            LOG_ERROR(Remote, "HTTP server failed to listen on port {}", port);
-        }
-        start_promise.set_value(listen_ok);
-    });
-
-    auto status = start_future.wait_for(std::chrono::seconds(5));
-    if (status == std::future_status::timeout) {
-        LOG_ERROR(Remote, "HTTP server startup timed out on port {}", port);
-        server->stop();
+    // Two-phase bind-then-listen approach to avoid blocking forever on listen()
+    if (!server->bind_to_port(bind_address, port)) {
+        LOG_ERROR(Remote, "Failed to bind to {}:{}", bind_address, port);
         return false;
     }
-    return start_future.get();
+
+    server_thread = std::jthread([this](std::stop_token /*st*/) {
+        Common::SetCurrentThreadName("RemoteHttp");
+        server->listen_after_bind();
+    });
+
+    // Wait for server to become ready (is_running_ == true) with bounded timeout
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!server->is_running() && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    if (!server->is_running()) {
+        LOG_ERROR(Remote, "Server failed to become ready within 5 seconds");
+        return false;
+    }
+
+    LOG_INFO(Remote, "HTTP server started on {}:{}", bind_address, port);
+    return true;
 }
 
 void HttpServer::Stop() {

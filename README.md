@@ -135,7 +135,7 @@ LibRetro ビルドでは自動的に無効化されます。
 | Method | Path | 説明 |
 |--------|------|------|
 | POST | `/api/v1/emulator/control` | pause / resume / stop / reset |
-| POST | `/api/v1/emulator/speed` | エミュレーション速度設定 (0-1000%) |
+| POST | `/api/v1/emulator/speed` | エミュレーション速度設定 (1-1000%) |
 | GET  | `/api/v1/emulator/status` | 現在の状態・Title ID |
 | POST | `/api/v1/state/save` | セーブステート保存 (slot 0-10) |
 | POST | `/api/v1/state/load` | セーブステート読込 (slot 0-10) |
