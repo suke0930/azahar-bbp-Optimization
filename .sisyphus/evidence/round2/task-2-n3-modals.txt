@@ -1,0 +1,70 @@
+Task: N3 — Suppress modal dialogs when remote server is enabled
+==============================================================
+
+Files modified:
+  1. src/citra_qt/configuration/configure_input.cpp  (lines 660-665)
+  2. src/citra_qt/configuration/configure_system.cpp (lines 566-570)
+
+Change summary:
+- Added `#include "common/logging/log.h"` and `#include "common/settings.h"` to
+  configure_input.cpp.
+- Added `#include "common/logging/log.h"` to configure_system.cpp (settings.h was
+  already included).
+- Wrapped QMessageBox::critical call in configure_input.cpp with a remote-mode
+  guard: when enable_remote_server is true, LOG_ERROR is used instead.
+- Wrapped QMessageBox::warning call in configure_system.cpp with a remote-mode
+  guard: when enable_remote_server is true, a LOG_WARNING is emitted and the
+  function returns early (preventing the destructive console ID regeneration).
+
+Detailed changes:
+
+configure_input.cpp:
+  Before:
+    SetPollingResult({}, true);
+    QMessageBox::critical(this, tr("Error!"),
+                          tr("You're using a key that's already bound."));
+    return;
+
+  After:
+    SetPollingResult({}, true);
+    if (Settings::values.enable_remote_server.GetValue()) {
+        LOG_ERROR(Frontend, "Key already bound: rejecting input");
+    } else {
+        QMessageBox::critical(this, tr("Error!"),
+                              tr("You're using a key that's already bound."));
+    }
+    return;
+
+configure_system.cpp:
+  Before:
+    void ConfigureSystem::RefreshConsoleID() {
+        ui->button_regenerate_console_id->setEnabled(false);
+        QMessageBox::StandardButton reply;
+        QString warning_text = ...;
+        reply = QMessageBox::warning(this, tr("Warning"), warning_text, ...);
+        ...
+
+  After:
+    void ConfigureSystem::RefreshConsoleID() {
+        ui->button_regenerate_console_id->setEnabled(false);
+        if (Settings::values.enable_remote_server.GetValue()) {
+            LOG_WARNING(Frontend, "Console ID regeneration suppressed (remote server enabled)");
+            ui->button_regenerate_console_id->setEnabled(true);
+            return;
+        }
+        QMessageBox::StandardButton reply;
+        QString warning_text = ...;
+        reply = QMessageBox::warning(this, tr("Warning"), warning_text, ...);
+        ...
+
+Behavior:
+- enable_remote_server=true  → no modal dialogs, only log output
+- enable_remote_server=false → existing modal dialog behavior preserved
+
+Verification:
+- lsp_diagnostics: clangd not available in this environment; code inspected
+  manually for correctness.
+- Includes verified: new headers exist and match project conventions.
+- configure_input.cpp retains identical return path after remote guard.
+- configure_system.cpp returns early to avoid destructive operation without
+  user confirmation.
