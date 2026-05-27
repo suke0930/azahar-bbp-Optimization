@@ -2908,7 +2908,10 @@ void GMainWindow::OnSaveState() {
     QAction* action = qobject_cast<QAction*>(sender());
     ASSERT(action);
 
-    system.SendSignal(Core::System::Signal::Save, action->data().toUInt());
+    if (!system.SendSignal(Core::System::Signal::Save, action->data().toUInt())) {
+        QMessageBox::warning(this, tr("Busy"), tr("Another operation is in progress."));
+        return;
+    }
     system.frame_limiter.AdvanceFrame();
     newest_slot = action->data().toUInt();
 }
@@ -2926,7 +2929,10 @@ void GMainWindow::OnLoadState() {
         config->Save();
     }
 
-    system.SendSignal(Core::System::Signal::Load, action->data().toUInt());
+    if (!system.SendSignal(Core::System::Signal::Load, action->data().toUInt())) {
+        QMessageBox::warning(this, tr("Busy"), tr("Another operation is in progress."));
+        return;
+    }
     system.frame_limiter.AdvanceFrame();
 }
 
