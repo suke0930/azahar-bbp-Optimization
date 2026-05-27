@@ -105,8 +105,9 @@ enum class Class : u8 {
     Movie,           ///< Movie (Input Recording) Playback
     WebService,      ///< Interface to Citra Web Services
     RPC_Server,      ///< RPC server
-    Remote,          ///< Remote debug HTTP server
-    Count,           ///< Total number of logging classes
+    Remote,              ///< Remote debug HTTP server
+    Remote_Services,     ///< Remote server services (HTTP API)
+    Count,               ///< Total number of logging classes
 };
 
 } // namespace Common::Log
