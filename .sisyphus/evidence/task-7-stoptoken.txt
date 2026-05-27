@@ -1,0 +1,10 @@
+QA Scenario: stop_tokenパラメータ確認
+========================================
+Steps:
+  1. grep "std::stop_token" remote_http_server.cpp
+Result:
+  src/core/remote/remote_http_server.cpp:89:
+    server_thread = std::jthread([this](std::stop_token /*st*/) {
+
+Status: ✅ PASS - パラメータ名なし（/*st*/ コメント付き）
+No changes required.

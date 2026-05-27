@@ -149,7 +149,6 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
     case Signal::RemoteSpeedChange: {
         const int speed = std::clamp(static_cast<int>(param), 1, 1000);
         Settings::values.frame_limit.SetValue(static_cast<double>(speed));
-        ApplySettings();
         break;
     }
     default:
@@ -585,11 +584,11 @@ System::ResultStatus System::Init(Frontend::EmuWindow& emu_window,
             *this, Settings::values.remote_server_port.GetValue(),
             Settings::values.remote_server_bind_address.GetValue());
         if (!remote_server->Start()) {
-            LOG_ERROR(Core, "Failed to start remote debug server on port {}",
-                      Settings::values.remote_server_port.GetValue());
+            LOG_ERROR(Remote_Services, "Failed to start remote HTTP server");
             remote_server.reset();
         } else {
-            m_remote_server_enabled = true;
+            m_remote_server_port = Settings::values.remote_server_port.GetValue();
+            m_remote_server_bind_address = Settings::values.remote_server_bind_address.GetValue();
         }
     }
 #endif
@@ -804,22 +803,40 @@ void System::ApplySettings() {
 #endif
 
 #ifdef ENABLE_REMOTE_SERVER
-    if (m_remote_server_enabled != Settings::values.enable_remote_server.GetValue()) {
+    bool needs_creation = false;
+    if ((remote_server != nullptr) != Settings::values.enable_remote_server.GetValue()) {
         if (Settings::values.enable_remote_server.GetValue()) {
-            remote_server = std::make_unique<Remote::Server>(
-                *this, Settings::values.remote_server_port.GetValue(),
-                Settings::values.remote_server_bind_address.GetValue());
-            if (!remote_server->Start()) {
-                LOG_ERROR(Core, "Failed to start remote debug server on port {}",
-                          Settings::values.remote_server_port.GetValue());
-                remote_server.reset();
-                m_remote_server_enabled = false;
-            } else {
-                m_remote_server_enabled = true;
-            }
+            needs_creation = true;
         } else {
             remote_server.reset();
-            m_remote_server_enabled = false;
+        }
+    }
+
+    const bool port_changed = remote_server &&
+                              (m_remote_server_port !=
+                               Settings::values.remote_server_port.GetValue());
+    const bool bind_changed =
+        remote_server &&
+        (m_remote_server_bind_address !=
+         Settings::values.remote_server_bind_address.GetValue());
+    if (port_changed || bind_changed) {
+        LOG_INFO(Remote_Services,
+                 "Remote server port or bind address changed, restarting");
+        remote_server.reset();
+        needs_creation = true;
+    }
+
+    if (needs_creation) {
+        remote_server = std::make_unique<Remote::Server>(
+            *this, Settings::values.remote_server_port.GetValue(),
+            Settings::values.remote_server_bind_address.GetValue());
+        if (!remote_server->Start()) {
+            LOG_ERROR(Remote_Services, "Failed to start remote HTTP server");
+            remote_server.reset();
+        } else {
+            m_remote_server_port = Settings::values.remote_server_port.GetValue();
+            m_remote_server_bind_address =
+                Settings::values.remote_server_bind_address.GetValue();
         }
     }
 #endif

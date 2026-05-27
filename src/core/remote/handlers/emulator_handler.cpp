@@ -23,11 +23,15 @@ nlohmann::json HandleEmulatorControl(Core::System& system, const nlohmann::json&
         system.frame_limiter.SetFrameAdvancing(false);
         return {{"status", "ok"}, {"state", "running"}};
     } else if (action == "stop") {
+        if (!system.IsPoweredOn())
+            return MakeErrorResponse(400, "Emulator is not running", "not_powered_on");
         if (!system.SendSignal(Core::System::Signal::Shutdown)) {
             return MakeErrorResponse(409, "Signal already pending", "signal_pending");
         }
         return {{"status", "ok"}, {"state", "stopped"}};
     } else if (action == "reset") {
+        if (!system.IsPoweredOn())
+            return MakeErrorResponse(400, "Emulator is not running", "not_powered_on");
         if (!system.SendSignal(Core::System::Signal::Reset)) {
             return MakeErrorResponse(409, "Signal already pending", "signal_pending");
         }

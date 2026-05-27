@@ -492,6 +492,8 @@ private:
 
 #ifdef ENABLE_REMOTE_SERVER
     std::unique_ptr<Remote::Server> remote_server;
+    u16 m_remote_server_port{};
+    std::string m_remote_server_bind_address;
 #endif
 
     std::unique_ptr<Service::FS::ArchiveManager> archive_manager;
@@ -521,8 +523,6 @@ private:
     std::string m_chainloadpath;
     std::optional<u8> m_mem_mode;
     std::atomic<u64> title_id{0};
-    bool m_remote_server_enabled{};
-
     std::mutex signal_mutex;
     Signal current_signal;
     u32 signal_param;
