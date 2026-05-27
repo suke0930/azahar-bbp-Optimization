@@ -724,6 +724,10 @@ void System::Shutdown(bool is_deserializing) {
     // Shutdown emulation session
     is_powered_on = false;
 
+#ifdef ENABLE_REMOTE_SERVER
+    remote_server.reset();
+#endif
+
     gpu.reset();
     title_id.store(0);
     VideoCore::BbpCompat::SetCurrentProgramId(0);
