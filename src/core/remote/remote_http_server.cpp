@@ -20,17 +20,16 @@ HttpServer::~HttpServer() {
     Stop();
 }
 
-static bool IsValidBindAddress(const std::string& addr) {
+static bool IsLoopbackAddress(const std::string& addr) {
     return addr == "127.0.0.1" || addr == "::1" || addr == "localhost";
 }
 
 bool HttpServer::Start() {
-    if (!IsValidBindAddress(bind_address)) {
-        LOG_ERROR(Remote,
-                  "Invalid bind address '{}': only loopback addresses (127.0.0.1, ::1, localhost) "
-                  "are allowed",
-                  bind_address);
-        return false;
+    if (!IsLoopbackAddress(bind_address)) {
+        LOG_WARNING(Remote,
+                    "Binding to non-loopback address '{}' — remote API will be accessible "
+                    "from other machines on the network",
+                    bind_address);
     }
 
     server = std::make_unique<httplib::Server>();
