@@ -2,6 +2,7 @@ add_executable(tests
     common/bit_field.cpp
     common/file_util.cpp
     common/param_package.cpp
+    core/state_operation.cpp
     core/core_timing.cpp
     core/file_sys/path_parser.cpp
     core/hle/service/http_bbp_nasc.cpp
@@ -31,7 +32,7 @@ if (BSD STREQUAL "NetBSD")
     disable_pax_mprotect(tests)
 endif()
 
-target_link_libraries(tests PRIVATE citra_common citra_core video_core audio_core)
+target_link_libraries(tests PRIVATE citra_common citra_core video_core audio_core httplib)
 target_link_libraries(tests PRIVATE ${PLATFORM_LIBRARIES} catch2 nihstro-headers Threads::Threads)
 
 if (ENABLE_LIBRETRO)

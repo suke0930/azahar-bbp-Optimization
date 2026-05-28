@@ -26,6 +26,7 @@
 #include "core/dumping/backend.h"
 #include "core/file_sys/ncch_container.h"
 #include "core/frontend/image_interface.h"
+#include "core/state_operation.h"
 #ifdef ENABLE_GDBSTUB
 #include "core/gdbstub/gdbstub.h"
 #endif
@@ -137,8 +138,11 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         if (save_state_request_status != SaveStateStatus::NONE) {
             LOG_ERROR(Core, "A pending save state operation has not finished yet");
             status_details = "A pending save state operation has not finished yet";
-            CompleteStateOperation(state_operation_id, ResultStatus::ErrorSavestate, status_details);
-            return ResultStatus::ErrorSavestate;
+            CompleteStateOperation(state_operation_id, ResultStatus::ErrorSavestate,
+                                   status_details);
+            frame_limiter.WaitOnce();
+            return StateOperation::GetRunLoopResult(state_operation_id,
+                                                    ResultStatus::ErrorSavestate);
         }
         save_state_slot = param;
         save_state_request_time = std::chrono::steady_clock::now();
@@ -150,8 +154,11 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         if (save_state_request_status != SaveStateStatus::NONE) {
             LOG_ERROR(Core, "A pending save state operation has not finished yet");
             status_details = "A pending save state operation has not finished yet";
-            CompleteStateOperation(state_operation_id, ResultStatus::ErrorSavestate, status_details);
-            return ResultStatus::ErrorSavestate;
+            CompleteStateOperation(state_operation_id, ResultStatus::ErrorSavestate,
+                                   status_details);
+            frame_limiter.WaitOnce();
+            return StateOperation::GetRunLoopResult(state_operation_id,
+                                                    ResultStatus::ErrorSavestate);
         }
         save_state_slot = param;
         save_state_request_time = std::chrono::steady_clock::now();
@@ -186,12 +193,11 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
             LOG_ERROR(Core, "Error loading: {}", e.what());
             status_details = e.what();
             CompleteStateOperation(operation_id, ResultStatus::ErrorSavestate, status_details);
-            return ResultStatus::ErrorSavestate;
+            frame_limiter.WaitOnce();
+            return StateOperation::GetRunLoopResult(operation_id, ResultStatus::ErrorSavestate);
         }
         CompleteStateOperation(operation_id, ResultStatus::Success);
-        if (operation_id == 0) {
-            frame_limiter.WaitOnce();
-        }
+        frame_limiter.WaitOnce();
         return ResultStatus::Success;
     } else if (save_state_request_status == SaveStateStatus::SAVING && kernel.get() &&
                !kernel->AreAsyncOperationsPending()) {
@@ -211,12 +217,11 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
             LOG_ERROR(Core, "Error saving: {}", e.what());
             status_details = e.what();
             CompleteStateOperation(operation_id, ResultStatus::ErrorSavestate, status_details);
-            return ResultStatus::ErrorSavestate;
+            frame_limiter.WaitOnce();
+            return StateOperation::GetRunLoopResult(operation_id, ResultStatus::ErrorSavestate);
         }
         CompleteStateOperation(operation_id, ResultStatus::Success);
-        if (operation_id == 0) {
-            frame_limiter.WaitOnce();
-        }
+        frame_limiter.WaitOnce();
         return ResultStatus::Success;
     } else if (save_state_request_status != SaveStateStatus::NONE &&
                (std::chrono::steady_clock::now() - save_state_request_time) >
@@ -227,7 +232,8 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         LOG_ERROR(Core, "Cannot perform save state operation due to pending async operations");
         status_details = "Cannot perform save state operation due to pending async operations";
         CompleteStateOperation(operation_id, ResultStatus::ErrorSavestate, status_details);
-        return ResultStatus::ErrorSavestate;
+        frame_limiter.WaitOnce();
+        return StateOperation::GetRunLoopResult(operation_id, ResultStatus::ErrorSavestate);
     }
 
     // All cores should have executed the same amount of ticks. If this is not the case an event was

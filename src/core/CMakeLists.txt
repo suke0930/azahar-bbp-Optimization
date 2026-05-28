@@ -36,6 +36,7 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     core.h
     core_timing.cpp
     core_timing.h
+    state_operation.h
     dumping/backend.cpp
     dumping/backend.h
     dumping/ffmpeg_backend.cpp
