@@ -66,3 +66,6 @@ GIT-TAG
 
 # verify-release.sh downloads
 verify/
+
+# OpenCode / Sisyphus agent workspace
+.sisyphus/
