@@ -533,10 +533,13 @@ if (ENABLE_REMOTE_SERVER)
         remote/remote_server.h
         remote/remote_http_server.cpp
         remote/remote_http_server.h
+        remote/remote_input.cpp
+        remote/remote_input.h
         remote/remote_handler.cpp
         remote/remote_handler.h
         remote/remote_types.h
         remote/handlers/emulator_handler.cpp
+        remote/handlers/input_handler.cpp
         remote/handlers/state_handler.cpp
         remote/handlers/cheat_handler.cpp
         remote/handlers/events_handler.cpp

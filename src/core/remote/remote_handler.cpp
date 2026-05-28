@@ -29,7 +29,10 @@ nlohmann::json HandleCheatsList(Core::System& system, const nlohmann::json& body
 nlohmann::json HandleCheatsEnable(Core::System& system, const nlohmann::json& body);
 nlohmann::json HandleCheatsDisable(Core::System& system, const nlohmann::json& body);
 nlohmann::json HandleEvents(Core::System& system, const nlohmann::json& body);
-nlohmann::json HandleVideoScreenshot(Core::System& system, const nlohmann::json& body);
+nlohmann::json HandleInputButtons(Core::System& system, const nlohmann::json& body);
+nlohmann::json HandleInputTouch(Core::System& system, const nlohmann::json& body);
+nlohmann::json HandleInputReleaseAll(Core::System& system, const nlohmann::json& body);
+void HandleVideoScreenshot(Core::System& system, const nlohmann::json& body, RemoteResponse& res);
 
 RequestDispatcher::RequestDispatcher(Core::System& system) : system(system) {
     RegisterHandlers();
@@ -49,17 +52,28 @@ void RequestDispatcher::RegisterHandlers() {
     routes[{"POST", "/api/v1/cheats/disable"}] = HandleCheatsDisable;
 
     routes[{"GET", "/api/v1/events"}] = HandleEvents;
-    routes[{"GET", "/api/v1/video/screenshot"}] = HandleVideoScreenshot;
+    routes[{"POST", "/api/v1/input/buttons"}] = HandleInputButtons;
+    routes[{"POST", "/api/v1/input/touch"}] = HandleInputTouch;
+    routes[{"POST", "/api/v1/input/release_all"}] = HandleInputReleaseAll;
+
+    response_routes[{"GET", "/api/v1/video/screenshot"}] = HandleVideoScreenshot;
 }
 
 void RequestDispatcher::Dispatch(const RemoteRequest& req, RemoteResponse& res) {
     auto it = routes.find({req.method, req.path});
-    if (it != routes.end()) {
+    auto response_it = response_routes.find({req.method, req.path});
+    if (it != routes.end() || response_it != response_routes.end()) {
         try {
             nlohmann::json request_body;
             if (!req.body.empty()) {
                 request_body = nlohmann::json::parse(req.body);
             }
+
+            if (response_it != response_routes.end()) {
+                response_it->second(system, request_body, res);
+                return;
+            }
+
             nlohmann::json response_json = it->second(system, request_body);
 
             // Detect error responses from handlers (via internal _http_status field)

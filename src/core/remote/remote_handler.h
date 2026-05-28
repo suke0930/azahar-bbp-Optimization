@@ -33,6 +33,8 @@ nlohmann::json MakeErrorResponse(int status, const std::string& message, const s
 class RequestDispatcher {
 public:
     using HandlerFunc = std::function<nlohmann::json(Core::System&, const nlohmann::json&)>;
+    using ResponseHandlerFunc =
+        std::function<void(Core::System&, const nlohmann::json&, RemoteResponse&)>;
 
     explicit RequestDispatcher(Core::System& system);
 
@@ -43,6 +45,7 @@ private:
 
     Core::System& system;
     std::map<std::pair<std::string, std::string>, HandlerFunc> routes;
+    std::map<std::pair<std::string, std::string>, ResponseHandlerFunc> response_routes;
 };
 
 } // namespace Remote

@@ -130,7 +130,7 @@ LibRetro ビルドでは自動的に無効化されます。
 1. 設定で `enable_remote_server = true`（デフォルト `false`）、`remote_server_port = 49355` を設定
 2. エミュレータ起動後、`curl http://127.0.0.1:49355/api/v1/emulator/status` で動作確認
 
-### 実装済みエンドポイント（Phase 1）
+### 実装済みエンドポイント（Phase 1 + Phase 2）
 
 | Method | Path | 説明 |
 |--------|------|------|
@@ -144,7 +144,10 @@ LibRetro ビルドでは自動的に無効化されます。
 | POST | `/api/v1/cheats/enable` | チート有効化 (stub) |
 | POST | `/api/v1/cheats/disable` | チート無効化 (stub) |
 | GET  | `/api/v1/events` | イベントポーリング (stub) |
-| GET  | `/api/v1/video/screenshot` | スクリーンショット (stub) |
+| GET  | `/api/v1/video/screenshot` | PNG スクリーンショット |
+| POST | `/api/v1/input/buttons` | ボタン入力 |
+| POST | `/api/v1/input/touch` | タッチ入力 |
+| POST | `/api/v1/input/release_all` | Remote 入力全解除 |
 
 ## Development Environment
 
