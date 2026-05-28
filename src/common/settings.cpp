@@ -164,6 +164,10 @@ void LogSettings() {
     log_setting("Debugging_UseGdbstub", values.use_gdbstub.GetValue());
     log_setting("Debugging_GdbstubPort", values.gdbstub_port.GetValue());
     log_setting("Debugging_InstantDebugLog", values.instant_debug_log.GetValue());
+    log_setting("Debugging_EnableRemoteServer", values.enable_remote_server.GetValue());
+    log_setting("Debugging_RemoteServerPort", values.remote_server_port.GetValue());
+    log_setting("Debugging_RemoteServerBindAddress",
+                values.remote_server_bind_address.GetValue());
     log_setting("Debugging_ToggleUniqueDataConsoleType",
                 values.toggle_unique_data_console_type.GetValue());
     log_setting("Debugging_BreakOnUnmappedMemoryAccess",

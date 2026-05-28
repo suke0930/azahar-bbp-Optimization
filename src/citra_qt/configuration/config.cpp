@@ -514,6 +514,9 @@ void QtConfig::ReadDebuggingValues() {
     ReadBasicSetting(Settings::values.dump_command_buffers);
     ReadBasicSetting(Settings::values.instant_debug_log);
     ReadBasicSetting(Settings::values.enable_rpc_server);
+    ReadBasicSetting(Settings::values.enable_remote_server);
+    ReadBasicSetting(Settings::values.remote_server_port);
+    ReadBasicSetting(Settings::values.remote_server_bind_address);
     ReadBasicSetting(Settings::values.toggle_unique_data_console_type);
     ReadBasicSetting(Settings::values.break_on_unmapped_memory_access);
 
@@ -1103,6 +1106,9 @@ void QtConfig::SaveDebuggingValues() {
     WriteBasicSetting(Settings::values.renderer_debug);
     WriteBasicSetting(Settings::values.instant_debug_log);
     WriteBasicSetting(Settings::values.enable_rpc_server);
+    WriteBasicSetting(Settings::values.enable_remote_server);
+    WriteBasicSetting(Settings::values.remote_server_port);
+    WriteBasicSetting(Settings::values.remote_server_bind_address);
     WriteBasicSetting(Settings::values.toggle_unique_data_console_type);
     WriteBasicSetting(Settings::values.break_on_unmapped_memory_access);
 

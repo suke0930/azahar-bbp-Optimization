@@ -1582,7 +1582,9 @@ void HandlePacket(Core::System& system) {
         // Continue execution and stop emulation
         continue_thread = -1;
         Continue();
-        system.RequestShutdown();
+        if (system.IsPoweredOn()) {
+            system.RequestShutdown();
+        }
         return;
     case 'F':
         HandleHioReply(system, current_process, command_buffer, recv_command_length);

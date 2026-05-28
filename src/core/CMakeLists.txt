@@ -36,6 +36,7 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     core.h
     core_timing.cpp
     core_timing.h
+    state_operation.h
     dumping/backend.cpp
     dumping/backend.h
     dumping/ffmpeg_backend.cpp
@@ -523,6 +524,25 @@ if (ENABLE_SCRIPTING)
         rpc/udp_server.cpp
         rpc/udp_server.h
     )
+endif()
+
+if (ENABLE_REMOTE_SERVER)
+    target_compile_definitions(citra_core PUBLIC -DENABLE_REMOTE_SERVER)
+    target_sources(citra_core PRIVATE
+        remote/remote_server.cpp
+        remote/remote_server.h
+        remote/remote_http_server.cpp
+        remote/remote_http_server.h
+        remote/remote_handler.cpp
+        remote/remote_handler.h
+        remote/remote_types.h
+        remote/handlers/emulator_handler.cpp
+        remote/handlers/state_handler.cpp
+        remote/handlers/cheat_handler.cpp
+        remote/handlers/events_handler.cpp
+        remote/handlers/video_handler.cpp
+    )
+    target_link_libraries(citra_core PRIVATE json-headers)
 endif()
 
 if (ENABLE_GDBSTUB)

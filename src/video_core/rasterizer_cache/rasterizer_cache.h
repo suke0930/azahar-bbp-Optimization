@@ -1240,6 +1240,7 @@ void RasterizerCache<T>::ClearAll(bool flush) {
     // Force flush all surfaces from the cache
     if (flush) {
         FlushRegion(0x0, 0xFFFFFFFF);
+        runtime.Finish();
     }
     // Unmark all of the marked pages
     for (auto& pair : RangeFromInterval(cached_pages, flush_interval)) {
