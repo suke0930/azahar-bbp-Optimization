@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -145,6 +146,22 @@ public:
     enum class Signal : u32 { None, Shutdown, Reset, Save, Load, RemoteSpeedChange };
 
     bool SendSignal(Signal signal, u32 param = 0);
+
+    enum class StateOperationStatus {
+        Completed,
+        SignalPending,
+        TimedOut,
+        InvalidSignal,
+    };
+
+    struct StateOperationResult {
+        StateOperationStatus operation_status;
+        ResultStatus result_status;
+        std::string details;
+    };
+
+    [[nodiscard]] StateOperationResult RequestStateOperation(
+        Signal signal, u32 param, std::chrono::milliseconds timeout);
 
     /// Request reset of the system
     void RequestReset(const std::string& chainload = "", std::optional<u8> mem_mode = {}) {
@@ -507,12 +524,18 @@ private:
 private:
     static System s_instance;
 
+    void CompleteStateOperation(u64 operation_id, ResultStatus result, std::string details = {});
+    void CancelStateOperation(u64 operation_id, ResultStatus result, std::string details = {});
+    void CancelPendingStateOperation(ResultStatus result, std::string details = {});
+    [[nodiscard]] bool IsStateOperationCanceled(u64 operation_id);
+
     std::atomic_bool is_powered_on{};
 
     SaveStateStatus save_state_status = SaveStateStatus::NONE;
     SaveStateStatus save_state_request_status = SaveStateStatus::NONE;
     u32 save_state_slot = 0;
     std::chrono::steady_clock::time_point save_state_request_time{};
+    u64 save_state_request_operation_id = 0;
 
     ResultStatus status = ResultStatus::Success;
     std::string status_details = "";
@@ -526,6 +549,16 @@ private:
     std::mutex signal_mutex;
     Signal current_signal;
     u32 signal_param;
+    u64 signal_state_operation_id = 0;
+
+    std::mutex state_operation_mutex;
+    std::condition_variable state_operation_cv;
+    bool state_operation_wait_pending = false;
+    u64 state_operation_request_id = 0;
+    u64 state_operation_completed_id = 0;
+    u64 state_operation_canceled_id = 0;
+    ResultStatus state_operation_result_status = ResultStatus::Success;
+    std::string state_operation_result_details;
 
     std::function<bool()> mic_permission_func;
     bool mic_permission_granted = false;

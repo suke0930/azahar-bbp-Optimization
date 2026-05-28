@@ -105,33 +105,44 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
 
     Signal signal{Signal::None};
     u32 param{};
+    u64 state_operation_id{};
     {
         std::scoped_lock lock{signal_mutex};
         if (current_signal != Signal::None) {
             signal = current_signal;
             param = signal_param;
+            state_operation_id = signal_state_operation_id;
             current_signal = Signal::None;
+            signal_state_operation_id = 0;
         }
     }
     switch (signal) {
     case Signal::Reset: {
         if (app_loader && app_loader->DoingInitialSetup()) {
             // Treat reset as shutdown if we are doing the initial setup
+            CancelPendingStateOperation(ResultStatus::ShutdownRequested,
+                                        "State operation interrupted by shutdown");
             return ResultStatus::ShutdownRequested;
         }
+        CancelPendingStateOperation(ResultStatus::ErrorSavestate,
+                                    "State operation interrupted by reset");
         Reset();
         return ResultStatus::Success;
     }
     case Signal::Shutdown:
+        CancelPendingStateOperation(ResultStatus::ShutdownRequested,
+                                    "State operation interrupted by shutdown");
         return ResultStatus::ShutdownRequested;
     case Signal::Load: {
         if (save_state_request_status != SaveStateStatus::NONE) {
             LOG_ERROR(Core, "A pending save state operation has not finished yet");
             status_details = "A pending save state operation has not finished yet";
+            CompleteStateOperation(state_operation_id, ResultStatus::ErrorSavestate, status_details);
             return ResultStatus::ErrorSavestate;
         }
         save_state_slot = param;
         save_state_request_time = std::chrono::steady_clock::now();
+        save_state_request_operation_id = state_operation_id;
         save_state_request_status = SaveStateStatus::LOADING;
         break;
     }
@@ -139,10 +150,12 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         if (save_state_request_status != SaveStateStatus::NONE) {
             LOG_ERROR(Core, "A pending save state operation has not finished yet");
             status_details = "A pending save state operation has not finished yet";
+            CompleteStateOperation(state_operation_id, ResultStatus::ErrorSavestate, status_details);
             return ResultStatus::ErrorSavestate;
         }
         save_state_slot = param;
         save_state_request_time = std::chrono::steady_clock::now();
+        save_state_request_operation_id = state_operation_id;
         save_state_request_status = SaveStateStatus::SAVING;
         break;
     }
@@ -158,7 +171,13 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
     if (save_state_request_status == SaveStateStatus::LOADING && kernel.get() &&
         !kernel->AreAsyncOperationsPending()) {
         const u32 slot = save_state_slot;
+        const u64 operation_id = save_state_request_operation_id;
         save_state_request_status = SaveStateStatus::NONE;
+        save_state_request_operation_id = 0;
+        if (IsStateOperationCanceled(operation_id)) {
+            LOG_INFO(Core, "Skipping canceled load of slot {}", slot);
+            return status;
+        }
         LOG_INFO(Core, "Begin load of slot {}", slot);
         try {
             System::LoadState(slot);
@@ -166,14 +185,24 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         } catch (const std::exception& e) {
             LOG_ERROR(Core, "Error loading: {}", e.what());
             status_details = e.what();
+            CompleteStateOperation(operation_id, ResultStatus::ErrorSavestate, status_details);
             return ResultStatus::ErrorSavestate;
         }
-        frame_limiter.WaitOnce();
+        CompleteStateOperation(operation_id, ResultStatus::Success);
+        if (operation_id == 0) {
+            frame_limiter.WaitOnce();
+        }
         return ResultStatus::Success;
     } else if (save_state_request_status == SaveStateStatus::SAVING && kernel.get() &&
                !kernel->AreAsyncOperationsPending()) {
         save_state_request_status = SaveStateStatus::NONE;
         const u32 slot = save_state_slot;
+        const u64 operation_id = save_state_request_operation_id;
+        save_state_request_operation_id = 0;
+        if (IsStateOperationCanceled(operation_id)) {
+            LOG_INFO(Core, "Skipping canceled save to slot {}", slot);
+            return status;
+        }
         LOG_INFO(Core, "Begin save to slot {}", slot);
         try {
             System::SaveState(slot);
@@ -181,16 +210,23 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         } catch (const std::exception& e) {
             LOG_ERROR(Core, "Error saving: {}", e.what());
             status_details = e.what();
+            CompleteStateOperation(operation_id, ResultStatus::ErrorSavestate, status_details);
             return ResultStatus::ErrorSavestate;
         }
-        frame_limiter.WaitOnce();
+        CompleteStateOperation(operation_id, ResultStatus::Success);
+        if (operation_id == 0) {
+            frame_limiter.WaitOnce();
+        }
         return ResultStatus::Success;
     } else if (save_state_request_status != SaveStateStatus::NONE &&
                (std::chrono::steady_clock::now() - save_state_request_time) >
                    std::chrono::seconds(5)) {
+        const u64 operation_id = save_state_request_operation_id;
         save_state_request_status = SaveStateStatus::NONE;
+        save_state_request_operation_id = 0;
         LOG_ERROR(Core, "Cannot perform save state operation due to pending async operations");
         status_details = "Cannot perform save state operation due to pending async operations";
+        CompleteStateOperation(operation_id, ResultStatus::ErrorSavestate, status_details);
         return ResultStatus::ErrorSavestate;
     }
 
@@ -291,7 +327,154 @@ bool System::SendSignal(System::Signal signal, u32 param) {
     }
     current_signal = signal;
     signal_param = param;
+    signal_state_operation_id = 0;
     return true;
+}
+
+System::StateOperationResult System::RequestStateOperation(
+    Signal signal, u32 param, std::chrono::milliseconds timeout) {
+    if (signal != Signal::Save && signal != Signal::Load) {
+        return {StateOperationStatus::InvalidSignal, ResultStatus::ErrorSavestate,
+                "Invalid state operation signal"};
+    }
+
+    u64 request_id{};
+    {
+        std::scoped_lock lock{state_operation_mutex};
+        if (state_operation_wait_pending) {
+            return {StateOperationStatus::SignalPending, ResultStatus::ErrorSavestate,
+                    "Signal already pending"};
+        }
+        request_id = ++state_operation_request_id;
+        state_operation_wait_pending = true;
+        state_operation_result_status = ResultStatus::Success;
+        state_operation_result_details.clear();
+    }
+
+    bool signal_pending{};
+    {
+        std::scoped_lock lock{signal_mutex};
+        if (current_signal != Signal::None) {
+            signal_pending = true;
+        } else {
+            current_signal = signal;
+            signal_param = param;
+            signal_state_operation_id = request_id;
+        }
+    }
+
+    if (signal_pending) {
+        std::scoped_lock lock{state_operation_mutex};
+        if (state_operation_wait_pending && state_operation_request_id == request_id) {
+            state_operation_wait_pending = false;
+        }
+        return {StateOperationStatus::SignalPending, ResultStatus::ErrorSavestate,
+                "Signal already pending"};
+    }
+
+    if (frame_limiter.IsFrameAdvancing()) {
+        frame_limiter.AdvanceFrame();
+    }
+
+    std::unique_lock lock{state_operation_mutex};
+    const bool completed = state_operation_cv.wait_for(lock, timeout, [this, request_id] {
+        return state_operation_completed_id == request_id;
+    });
+
+    if (!completed) {
+        lock.unlock();
+        CancelStateOperation(request_id, ResultStatus::ErrorSavestate,
+                             "Timed out waiting for state operation");
+        return {StateOperationStatus::TimedOut, ResultStatus::ErrorSavestate,
+                "Timed out waiting for state operation"};
+    }
+
+    return {StateOperationStatus::Completed, state_operation_result_status,
+            state_operation_result_details};
+}
+
+void System::CompleteStateOperation(u64 operation_id, ResultStatus result, std::string details) {
+    if (operation_id == 0) {
+        return;
+    }
+
+    std::scoped_lock lock{state_operation_mutex};
+    if (!state_operation_wait_pending || state_operation_request_id != operation_id) {
+        return;
+    }
+    if (state_operation_canceled_id == operation_id) {
+        state_operation_wait_pending = false;
+        return;
+    }
+    state_operation_result_status = result;
+    state_operation_result_details = std::move(details);
+    state_operation_completed_id = operation_id;
+    state_operation_wait_pending = false;
+    state_operation_cv.notify_all();
+}
+
+void System::CancelStateOperation(u64 operation_id, ResultStatus result, std::string details) {
+    if (operation_id == 0) {
+        return;
+    }
+
+    {
+        std::scoped_lock lock{state_operation_mutex};
+        if (state_operation_request_id == operation_id) {
+            state_operation_canceled_id = operation_id;
+            state_operation_result_status = result;
+            state_operation_result_details = std::move(details);
+            state_operation_wait_pending = false;
+        }
+    }
+
+    {
+        std::scoped_lock lock{signal_mutex};
+        if (signal_state_operation_id == operation_id &&
+            (current_signal == Signal::Save || current_signal == Signal::Load)) {
+            current_signal = Signal::None;
+            signal_state_operation_id = 0;
+        }
+    }
+
+    state_operation_cv.notify_all();
+}
+
+void System::CancelPendingStateOperation(ResultStatus result, std::string details) {
+    u64 queued_operation_id{};
+    {
+        std::scoped_lock lock{signal_mutex};
+        if (signal_state_operation_id != 0 &&
+            (current_signal == Signal::Save || current_signal == Signal::Load)) {
+            queued_operation_id = signal_state_operation_id;
+            current_signal = Signal::None;
+            signal_state_operation_id = 0;
+        }
+    }
+
+    u64 active_operation_id{};
+    if (save_state_request_status != SaveStateStatus::NONE &&
+        save_state_request_operation_id != 0) {
+        active_operation_id = save_state_request_operation_id;
+        save_state_request_status = SaveStateStatus::NONE;
+        save_state_request_operation_id = 0;
+    }
+
+    if (queued_operation_id != 0) {
+        CompleteStateOperation(queued_operation_id, result, details);
+    }
+    if (active_operation_id != 0 && active_operation_id != queued_operation_id) {
+        CompleteStateOperation(active_operation_id, result, details);
+    }
+}
+
+bool System::IsStateOperationCanceled(u64 operation_id) {
+    if (operation_id == 0) {
+        return false;
+    }
+
+    std::scoped_lock lock{state_operation_mutex};
+    return state_operation_canceled_id == operation_id;
 }
 
 System::ResultStatus System::SingleStep() {
@@ -579,7 +762,7 @@ System::ResultStatus System::Init(Frontend::EmuWindow& emu_window,
 #endif
 
 #ifdef ENABLE_REMOTE_SERVER
-    if (Settings::values.enable_remote_server.GetValue()) {
+    if (Settings::values.enable_remote_server.GetValue() && !remote_server) {
         remote_server = std::make_unique<Remote::Server>(
             *this, Settings::values.remote_server_port.GetValue(),
             Settings::values.remote_server_bind_address.GetValue());
@@ -721,11 +904,18 @@ void System::RegisterImageInterface(std::shared_ptr<Frontend::ImageInterface> im
 
 void System::Shutdown(bool is_deserializing) {
 
+    if (!is_deserializing) {
+        CancelPendingStateOperation(ResultStatus::ShutdownRequested,
+                                    "State operation interrupted by shutdown");
+    }
+
     // Shutdown emulation session
     is_powered_on = false;
 
 #ifdef ENABLE_REMOTE_SERVER
-    remote_server.reset();
+    if (!is_deserializing) {
+        remote_server.reset();
+    }
 #endif
 
     gpu.reset();
@@ -939,10 +1129,12 @@ void System::serialize(Archive& ar, const unsigned int file_version) {
     if (Archive::is_loading::value) {
         // When loading, we want to make sure any lingering state gets cleared out before we begin.
         // Shutdown, but persist a few things between loads...
+        const u64 current_title_id = title_id.load();
         Shutdown(true);
 
         [[maybe_unused]] const System::ResultStatus result =
             Init(*m_emu_window, m_secondary_window, mem_mode, num_cores);
+        title_id.store(current_title_id);
     }
 
     // Flush on save, don't flush on load
