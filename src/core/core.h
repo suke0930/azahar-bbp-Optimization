@@ -22,6 +22,7 @@
 #include "core/perf_stats.h"
 
 #ifdef ENABLE_REMOTE_SERVER
+#include "core/remote/remote_input.h"
 #include "core/remote/remote_server.h"
 #endif
 
@@ -345,6 +346,12 @@ public:
         return title_id.load();
     }
 
+#ifdef ENABLE_REMOTE_SERVER
+    [[nodiscard]] Remote::InputState& RemoteInput() {
+        return remote_input;
+    }
+#endif
+
     /// Frontend Applets
 
     void RegisterMiiSelector(std::shared_ptr<Frontend::MiiSelector> mii_selector);
@@ -509,6 +516,7 @@ private:
 
 #ifdef ENABLE_REMOTE_SERVER
     std::unique_ptr<Remote::Server> remote_server;
+    Remote::InputState remote_input;
     u16 m_remote_server_port{};
     std::string m_remote_server_bind_address;
 #endif

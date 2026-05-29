@@ -919,6 +919,7 @@ void System::Shutdown(bool is_deserializing) {
     is_powered_on = false;
 
 #ifdef ENABLE_REMOTE_SERVER
+    remote_input.ReleaseAll();
     if (!is_deserializing) {
         remote_server.reset();
     }

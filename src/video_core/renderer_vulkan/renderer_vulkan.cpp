@@ -2,6 +2,9 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <functional>
+#include <mutex>
+
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "common/memory_detect.h"
@@ -1146,21 +1149,33 @@ void RendererVulkan::SwapBuffers() {
 }
 
 void RendererVulkan::RenderScreenshot() {
-    if (!settings.screenshot_requested.exchange(false)) {
-        return;
+    void* screenshot_bits{};
+    std::function<void(bool, VideoCore::ScreenshotPixelFormat)> screenshot_complete_callback;
+    Layout::FramebufferLayout layout;
+    {
+        std::scoped_lock lock{settings.screenshot_mutex};
+        if (!settings.screenshot_requested.exchange(false)) {
+            return;
+        }
+        screenshot_bits = settings.screenshot_bits;
+        screenshot_complete_callback = settings.screenshot_complete_callback;
+        layout = settings.screenshot_framebuffer_layout;
     }
 
-    if (!TryRenderScreenshotWithHostMemory()) {
-        RenderScreenshotWithStagingCopy();
+    if (!TryRenderScreenshotWithHostMemory(layout, screenshot_bits)) {
+        RenderScreenshotWithStagingCopy(layout, screenshot_bits);
     }
 
-    settings.screenshot_complete_callback(false);
+    const auto format = main_present_window.GetSurfaceFormat() == vk::Format::eB8G8R8A8Unorm
+                            ? VideoCore::ScreenshotPixelFormat::BGRA8
+                            : VideoCore::ScreenshotPixelFormat::RGBA8;
+    screenshot_complete_callback(false, format);
 }
 
-void RendererVulkan::RenderScreenshotWithStagingCopy() {
+void RendererVulkan::RenderScreenshotWithStagingCopy(const Layout::FramebufferLayout& layout,
+                                                     void* screenshot_bits) {
     const vk::Device device = instance.GetDevice();
 
-    const Layout::FramebufferLayout layout{settings.screenshot_framebuffer_layout};
     const u32 width = layout.width;
     const u32 height = layout.height;
 
@@ -1266,7 +1281,7 @@ void RendererVulkan::RenderScreenshotWithStagingCopy() {
     scheduler.Finish();
 
     // Copy backing image data to the QImage screenshot buffer
-    std::memcpy(settings.screenshot_bits, alloc_info.pMappedData, staging_buffer_info.size);
+    std::memcpy(screenshot_bits, alloc_info.pMappedData, staging_buffer_info.size);
 
     // Destroy allocated resources
     vmaDestroyBuffer(instance.GetAllocator(), staging_buffer, allocation);
@@ -1275,7 +1290,8 @@ void RendererVulkan::RenderScreenshotWithStagingCopy() {
     device.destroyImageView(frame.image_view);
 }
 
-bool RendererVulkan::TryRenderScreenshotWithHostMemory() {
+bool RendererVulkan::TryRenderScreenshotWithHostMemory(const Layout::FramebufferLayout& layout,
+                                                   void* screenshot_bits) {
     // If the host-memory import alignment matches the allocation granularity of the platform, then
     // the entire span of memory can be trivially imported
     const bool trivial_import =
@@ -1287,14 +1303,13 @@ bool RendererVulkan::TryRenderScreenshotWithHostMemory() {
 
     const vk::Device device = instance.GetDevice();
 
-    const Layout::FramebufferLayout layout{settings.screenshot_framebuffer_layout};
     const u32 width = layout.width;
     const u32 height = layout.height;
 
     // For a span of memory [x, x + s], import [AlignDown(x, alignment), AlignUp(x + s, alignment)]
     // and maintain an offset to the start of the data
     const u64 import_alignment = instance.GetMinImportedHostPointerAlignment();
-    const uintptr_t address = reinterpret_cast<uintptr_t>(settings.screenshot_bits);
+    const uintptr_t address = reinterpret_cast<uintptr_t>(screenshot_bits);
     void* aligned_pointer = reinterpret_cast<void*>(Common::AlignDown(address, import_alignment));
     const u64 offset = address % import_alignment;
     const u64 aligned_size = Common::AlignUp(offset + width * height * 4ull, import_alignment);

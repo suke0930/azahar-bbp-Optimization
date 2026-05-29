@@ -212,11 +212,72 @@ cmake --build build
 
 #### `GET /api/v1/video/screenshot`
 
-スクリーンショットを取得します（現在は未実装）。
+スクリーンショットを PNG で取得します。レスポンスは JSON ではなく `image/png` の
+バイナリです。フレームアドバンス中は 1 フレームだけ進めて撮影します。
+
+**成功レスポンス (200):**
+```
+Content-Type: image/png
+```
+
+**エラーレスポンス:**
+- `400 not_powered_on`: エミュレータが起動していない
+- `409 screenshot_pending`: 別の screenshot が処理中
+- `504 screenshot_timeout`: 5 秒以内に screenshot が完了しなかった
+- `500 screenshot_encode_failed`: PNG エンコードに失敗した
+
+---
+
+### Input
+
+#### `POST /api/v1/input/buttons`
+
+3DS のボタン入力を送信します。
+
+**Request Body:**
+```json
+{"buttons": ["a", "down"], "action": "tap", "duration_ms": 100}
+```
+
+- `buttons`: `a`, `b`, `x`, `y`, `up`, `down`, `left`, `right`, `l`, `r`, `start`, `select`
+- `action`: `tap` / `press` / `release`（デフォルト `tap`）
+- `duration_ms`: `tap` 時の押下時間。0–5000（デフォルト 100）
 
 **成功レスポンス (200):**
 ```json
-{"status": "not_implemented"}
+{"status": "ok"}
+```
+
+---
+
+#### `POST /api/v1/input/touch`
+
+下画面のタッチ入力を送信します。座標は 3DS 下画面ピクセル座標です。
+
+**Request Body:**
+```json
+{"x": 160, "y": 120, "action": "tap", "duration_ms": 100}
+```
+
+- `x`: 0–319
+- `y`: 0–239
+- `action`: `tap` / `press` / `move` / `release`（デフォルト `tap`）
+- `duration_ms`: `tap` 時の押下時間。0–5000（デフォルト 100）
+
+**成功レスポンス (200):**
+```json
+{"status": "ok"}
+```
+
+---
+
+#### `POST /api/v1/input/release_all`
+
+Remote API で押下中のボタンとタッチ入力をすべて解除します。
+
+**成功レスポンス (200):**
+```json
+{"status": "ok"}
 ```
 
 ---
@@ -245,9 +306,9 @@ cmake --build build
 | Phase | 内容 | 状態 |
 |-------|------|------|
 | 1 | 基本制御 + ステート + チート/イベント/ビデオ stub | ✅ 完了 |
-| 2 | メモリ読み書きエンドポイント | 📝 未着手 |
-| 3 | スクリーンショット実装、入力注入（タッチ/ボタン/アナログ） | 📝 未着手 |
-| 4 | マクロ記録/再生 | 📝 未着手 |
+| 2 | スクリーンショット実装、入力注入（ボタン/タッチ） | ✅ 実装中 |
+| 3 | メモリ読み書きエンドポイント、アナログ入力 | 📝 未着手 |
+| 4 | イベント実装、マクロ記録/再生 | 📝 未着手 |
 
 ## ビルド設定リファレンス
 
@@ -264,10 +325,13 @@ if (ENABLE_REMOTE_SERVER)
         remote/remote_server.h
         remote/remote_http_server.cpp
         remote/remote_http_server.h
+        remote/remote_input.cpp
+        remote/remote_input.h
         remote/remote_handler.cpp
         remote/remote_handler.h
         remote/remote_types.h
         remote/handlers/emulator_handler.cpp
+        remote/handlers/input_handler.cpp
         remote/handlers/state_handler.cpp
         remote/handlers/cheat_handler.cpp
         remote/handlers/events_handler.cpp
@@ -283,13 +347,15 @@ src/core/remote/
 ├── remote_types.h              # RemoteRequest / RemoteResponse / RemoteEvent
 ├── remote_http_server.h/.cpp   # httplib::Server ラッパー
 ├── remote_server.h/.cpp        # 高レベル Server オーケストレータ
+├── remote_input.h/.cpp         # Remote API 入力状態
 ├── remote_handler.h/.cpp       # リクエストディスパッチャ（ルーティング）
 └── handlers/
     ├── emulator_handler.cpp    # control / speed / status
+    ├── input_handler.cpp       # button / touch input
     ├── state_handler.cpp       # save / load / list
     ├── cheat_handler.cpp       # list / enable / disable (stub)
     ├── events_handler.cpp      # events polling (stub)
-    └── video_handler.cpp       # screenshot (stub)
+    └── video_handler.cpp       # screenshot
 ```
 
 コア側の統合ポイント:
