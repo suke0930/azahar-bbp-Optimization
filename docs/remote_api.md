@@ -155,12 +155,39 @@ cmake --build build
 
 #### `GET /api/v1/state/list`
 
-セーブステート一覧を返します（現在は stub）。
+現在のタイトルのセーブステート一覧を返します。レスポンスには必ず 12 件の
+エントリが含まれ、slots `0..11` の昇順で並びます。
 
 **成功レスポンス (200):**
 ```json
-{"status": "not_implemented"}
+{
+  "status": "ok",
+  "states": [
+    {
+      "slot": 0,
+      "exists": false,
+      "time": null,
+      "build_name": null,
+      "status": null
+    },
+    {
+      "slot": 1,
+      "exists": true,
+      "time": 1717000000,
+      "build_name": "Azahar 2120",
+      "status": "ok"
+    }
+  ]
+}
 ```
+
+- `states`: 12 件固定。`slot` は `0..11` の整数で、昇順に並びます。
+- 未作成の slot は `exists:false`, `time:null`, `build_name:null`, `status:null` を返します。
+- 作成済みの slot は `exists:true` を返し、`time` は数値のタイムスタンプ、`build_name` は文字列です。
+- 作成済みの slot の `status` は `ok` または `revision_mismatch` です。
+
+**エラーレスポンス:**
+- `400 not_powered_on`: エミュレータが起動していない、または現在のタイトル情報を取得できない
 
 ---
 
@@ -168,30 +195,86 @@ cmake --build build
 
 #### `GET /api/v1/cheats/list`
 
-有効なチート一覧を返します（現在は stub）。
+現在のタイトルで読み込まれているチート一覧を、メタデータのみで返します。
+生のチート内容は返しません。
 
 **成功レスポンス (200):**
 ```json
-{"status": "not_implemented"}
+{
+  "status": "ok",
+  "cheats": [
+    {
+      "index": 0,
+      "name": "Example cheat",
+      "type": "gateway",
+      "enabled": false,
+      "code_line_count": 4
+    }
+  ]
+}
 ```
+
+- `cheats`: チートがない場合は空配列 `[]` です。
+- `index`: 0 起点の整数です。リクエスト時点の `cheats/list` の並びに対してだけ有効で、永続 ID ではありません。
+- `name`: チート名です。
+- `type`: チート種別です。Phase 2.5 では `gateway` を返します。
+- `enabled`: 現在の有効状態です。
+- `code_line_count`: 空行を除いたチート行数です。生のチート内容は含みません。
+
+**エラーレスポンス:**
+- `400 not_powered_on`: エミュレータが起動していない、または現在のタイトル情報を取得できない
 
 #### `POST /api/v1/cheats/enable`
 
-チートを有効化します（現在は stub）。
+指定したチートを有効化します。すでに有効なチートに対して呼び出しても成功し、
+有効状態のまま返します。
+
+**Request Body:**
+```json
+{"index": 0}
+```
+
+- `index`: 0 起点の整数です。リクエスト時点の `cheats/list` の並びに対してだけ有効で、永続 ID ではありません。
 
 **成功レスポンス (200):**
 ```json
-{"status": "not_implemented"}
+{"status": "ok", "index": 0, "enabled": true}
 ```
+
+**エラーレスポンス:**
+- `400 missing_index`: request body に `index` がない
+- `400 invalid_index`: `index` が整数ではない、または負数など範囲外の形式
+- `400 not_powered_on`: エミュレータが起動していない、または現在のタイトル情報を取得できない
+- `404 cheat_not_found`: 指定した `index` のチートが現在の一覧に存在しない
 
 #### `POST /api/v1/cheats/disable`
 
-チートを無効化します（現在は stub）。
+指定したチートを無効化します。すでに無効なチートに対して呼び出しても成功し、
+無効状態のまま返します。
+
+**Request Body:**
+```json
+{"index": 0}
+```
+
+- `index`: 0 起点の整数です。リクエスト時点の `cheats/list` の並びに対してだけ有効で、永続 ID ではありません。
 
 **成功レスポンス (200):**
 ```json
-{"status": "not_implemented"}
+{"status": "ok", "index": 0, "enabled": false}
 ```
+
+**エラーレスポンス:**
+- `400 missing_index`: request body に `index` がない
+- `400 invalid_index`: `index` が整数ではない、または負数など範囲外の形式
+- `400 not_powered_on`: エミュレータが起動していない、または現在のタイトル情報を取得できない
+- `404 cheat_not_found`: 指定した `index` のチートが現在の一覧に存在しない
+
+#### Cheats request body の JSON エラー
+
+`POST /api/v1/cheats/enable` と `POST /api/v1/cheats/disable` で JSON として
+解釈できない body を送った場合は、共通ディスパッチャの既存挙動として
+`400 invalid_json` 系のエラーレスポンスになります。
 
 ---
 
@@ -306,7 +389,8 @@ Remote API で押下中のボタンとタッチ入力をすべて解除します
 | Phase | 内容 | 状態 |
 |-------|------|------|
 | 1 | 基本制御 + ステート + チート/イベント/ビデオ stub | ✅ 完了 |
-| 2 | スクリーンショット実装、入力注入（ボタン/タッチ） | ✅ 実装中 |
+| 2 | スクリーンショット実装、入力注入（ボタン/タッチ） | ✅ 完了 |
+| 2.5 | Phase 1 stub 回収（state/list、cheats/list・enable・disable） | ✅ 完了 |
 | 3 | メモリ読み書きエンドポイント、アナログ入力 | 📝 未着手 |
 | 4 | イベント実装、マクロ記録/再生 | 📝 未着手 |
 
@@ -353,7 +437,7 @@ src/core/remote/
     ├── emulator_handler.cpp    # control / speed / status
     ├── input_handler.cpp       # button / touch input
     ├── state_handler.cpp       # save / load / list
-    ├── cheat_handler.cpp       # list / enable / disable (stub)
+    ├── cheat_handler.cpp       # list / enable / disable
     ├── events_handler.cpp      # events polling (stub)
     └── video_handler.cpp       # screenshot
 ```
