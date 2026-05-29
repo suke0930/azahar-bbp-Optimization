@@ -112,6 +112,43 @@ winget install --id KhronosGroup.VulkanSDK -e
 
 https://vulkan.lunarg.com/sdk/home
 
+## Remote Debug API (`feature/remote-debug-api`)
+
+このブランチは、LLM エージェントが HTTP REST API 経由で Azahar エミュレータを
+プログラムから制御できるようにするリモートデバッグ機能を追加します。
+
+**ユースケース**: LLM エージェントがエミュレータ（Windows）とは別のマシン（Linux）
+から HTTP で操作し、自動テスト・自動探索・デバッグを行うことを想定しています。
+
+**ビルド**: CMake の `-DENABLE_REMOTE_SERVER=ON`（デフォルト OFF）で有効化。
+LibRetro ビルドでは自動的に無効化されます。
+
+**詳細な API リファレンス**: [`docs/remote_api.md`](docs/remote_api.md)
+
+### 有効化方法
+
+1. 設定で `enable_remote_server = true`（デフォルト `false`）、`remote_server_port = 49355` を設定
+2. エミュレータ起動後、`curl http://127.0.0.1:49355/api/v1/emulator/status` で動作確認
+
+### 実装済みエンドポイント（Phase 1 + Phase 2）
+
+| Method | Path | 説明 |
+|--------|------|------|
+| POST | `/api/v1/emulator/control` | pause / resume / stop / reset |
+| POST | `/api/v1/emulator/speed` | エミュレーション速度設定 (1-1000%) |
+| GET  | `/api/v1/emulator/status` | 現在の状態・Title ID |
+| POST | `/api/v1/state/save` | セーブステート保存 (slot 0-10) |
+| POST | `/api/v1/state/load` | セーブステート読込 (slot 0-10) |
+| GET  | `/api/v1/state/list` | セーブステート一覧 (stub) |
+| GET  | `/api/v1/cheats/list` | チート一覧 (stub) |
+| POST | `/api/v1/cheats/enable` | チート有効化 (stub) |
+| POST | `/api/v1/cheats/disable` | チート無効化 (stub) |
+| GET  | `/api/v1/events` | イベントポーリング (stub) |
+| GET  | `/api/v1/video/screenshot` | PNG スクリーンショット |
+| POST | `/api/v1/input/buttons` | ボタン入力 |
+| POST | `/api/v1/input/touch` | タッチ入力 |
+| POST | `/api/v1/input/release_all` | Remote 入力全解除 |
+
 ## Development Environment
 
 This fork uses agent-based tools such as Codex, OpenCode, and Claude for

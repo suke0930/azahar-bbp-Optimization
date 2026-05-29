@@ -11,6 +11,7 @@
 #include "citra_qt/configuration/configuration_shared.h"
 #include "citra_qt/configuration/configure_system.h"
 #include "common/file_util.h"
+#include "common/logging/log.h"
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/hle/service/am/am.h"
@@ -561,6 +562,13 @@ void ConfigureSystem::UpdateInitTicks(int init_ticks_type) {
 
 void ConfigureSystem::RefreshConsoleID() {
     ui->button_regenerate_console_id->setEnabled(false);
+
+    if (Settings::values.enable_remote_server.GetValue()) {
+        LOG_WARNING(Frontend, "Console ID regeneration suppressed (remote server enabled)");
+        ui->button_regenerate_console_id->setEnabled(true);
+        return;
+    }
+
     QMessageBox::StandardButton reply;
     QString warning_text =
         tr("This will replace your current virtual 3DS console ID with a new one. "

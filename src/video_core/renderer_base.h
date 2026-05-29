@@ -4,6 +4,10 @@
 
 #pragma once
 
+#include <atomic>
+#include <functional>
+#include <mutex>
+
 #include "common/common_types.h"
 #include "core/frontend/framebuffer_layout.h"
 #include "video_core/rasterizer_interface.h"
@@ -24,11 +28,17 @@ enum class ScreenId : u32 {
     Bottom,
 };
 
+enum class ScreenshotPixelFormat {
+    RGBA8,
+    BGRA8,
+};
+
 struct RendererSettings {
     // Screenshot
     std::atomic_bool screenshot_requested{false};
+    std::mutex screenshot_mutex;
     void* screenshot_bits{};
-    std::function<void(bool)> screenshot_complete_callback;
+    std::function<void(bool, ScreenshotPixelFormat)> screenshot_complete_callback;
     Layout::FramebufferLayout screenshot_framebuffer_layout;
     // Renderer
     std::atomic_bool bg_color_update_requested{false};
@@ -101,7 +111,7 @@ public:
     [[nodiscard]] bool IsScreenshotPending() const;
 
     /// Request a screenshot of the next frame
-    void RequestScreenshot(void* data, std::function<void(bool)> callback,
+    bool RequestScreenshot(void* data, std::function<void(bool, ScreenshotPixelFormat)> callback,
                            const Layout::FramebufferLayout& layout);
 
 protected:

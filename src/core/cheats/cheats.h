@@ -8,6 +8,7 @@
 #include <optional>
 #include <shared_mutex>
 #include <span>
+#include <string>
 #include <vector>
 #include "common/common_types.h"
 
@@ -24,6 +25,13 @@ namespace Cheats {
 
 class CheatBase;
 
+struct CheatSnapshot {
+    std::string name;
+    std::string type;
+    std::string code;
+    bool enabled = false;
+};
+
 class CheatEngine {
 public:
     explicit CheatEngine(Core::System& system);
@@ -34,6 +42,12 @@ public:
 
     /// Returns a span of the currently active cheats.
     std::span<const std::shared_ptr<CheatBase>> GetCheats() const;
+
+    /// Returns value snapshots of the currently active cheats.
+    std::vector<CheatSnapshot> GetCheatSnapshots() const;
+
+    /// Enables or disables a cheat at the specified index in the cheats list.
+    bool SetCheatEnabled(std::size_t index, bool enabled);
 
     /// Adds a cheat to the cheat engine.
     void AddCheat(std::shared_ptr<CheatBase>&& cheat);

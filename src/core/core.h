@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -19,6 +20,11 @@
 #include "core/hle/service/plgldr/plgldr.h"
 #include "core/movie.h"
 #include "core/perf_stats.h"
+
+#ifdef ENABLE_REMOTE_SERVER
+#include "core/remote/remote_input.h"
+#include "core/remote/remote_server.h"
+#endif
 
 namespace Frontend {
 class EmuWindow;
@@ -138,9 +144,25 @@ public:
     /// Shutdown and then load again
     void Reset();
 
-    enum class Signal : u32 { None, Shutdown, Reset, Save, Load };
+    enum class Signal : u32 { None, Shutdown, Reset, Save, Load, RemoteSpeedChange };
 
     bool SendSignal(Signal signal, u32 param = 0);
+
+    enum class StateOperationStatus {
+        Completed,
+        SignalPending,
+        TimedOut,
+        InvalidSignal,
+    };
+
+    struct StateOperationResult {
+        StateOperationStatus operation_status;
+        ResultStatus result_status;
+        std::string details;
+    };
+
+    [[nodiscard]] StateOperationResult RequestStateOperation(
+        Signal signal, u32 param, std::chrono::milliseconds timeout);
 
     /// Request reset of the system
     void RequestReset(const std::string& chainload = "", std::optional<u8> mem_mode = {}) {
@@ -321,8 +343,14 @@ public:
     }
 
     [[nodiscard]] u64 GetTitleId() const {
-        return title_id;
+        return title_id.load();
     }
+
+#ifdef ENABLE_REMOTE_SERVER
+    [[nodiscard]] Remote::InputState& RemoteInput() {
+        return remote_input;
+    }
+#endif
 
     /// Frontend Applets
 
@@ -486,6 +514,13 @@ private:
     std::unique_ptr<RPC::Server> rpc_server;
 #endif
 
+#ifdef ENABLE_REMOTE_SERVER
+    std::unique_ptr<Remote::Server> remote_server;
+    Remote::InputState remote_input;
+    u16 m_remote_server_port{};
+    std::string m_remote_server_bind_address;
+#endif
+
     std::unique_ptr<Service::FS::ArchiveManager> archive_manager;
 
     std::unique_ptr<Memory::MemorySystem> memory;
@@ -497,12 +532,18 @@ private:
 private:
     static System s_instance;
 
+    void CompleteStateOperation(u64 operation_id, ResultStatus result, std::string details = {});
+    void CancelStateOperation(u64 operation_id, ResultStatus result, std::string details = {});
+    void CancelPendingStateOperation(ResultStatus result, std::string details = {});
+    [[nodiscard]] bool IsStateOperationCanceled(u64 operation_id);
+
     std::atomic_bool is_powered_on{};
 
     SaveStateStatus save_state_status = SaveStateStatus::NONE;
     SaveStateStatus save_state_request_status = SaveStateStatus::NONE;
     u32 save_state_slot = 0;
     std::chrono::steady_clock::time_point save_state_request_time{};
+    u64 save_state_request_operation_id = 0;
 
     ResultStatus status = ResultStatus::Success;
     std::string status_details = "";
@@ -512,11 +553,20 @@ private:
     std::string m_filepath;
     std::string m_chainloadpath;
     std::optional<u8> m_mem_mode;
-    u64 title_id = 0;
-
+    std::atomic<u64> title_id{0};
     std::mutex signal_mutex;
     Signal current_signal;
     u32 signal_param;
+    u64 signal_state_operation_id = 0;
+
+    std::mutex state_operation_mutex;
+    std::condition_variable state_operation_cv;
+    bool state_operation_wait_pending = false;
+    u64 state_operation_request_id = 0;
+    u64 state_operation_completed_id = 0;
+    u64 state_operation_canceled_id = 0;
+    ResultStatus state_operation_result_status = ResultStatus::Success;
+    std::string state_operation_result_details;
 
     std::function<bool()> mic_permission_func;
     bool mic_permission_granted = false;

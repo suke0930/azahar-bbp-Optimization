@@ -2,6 +2,8 @@
 [Bb]uild*/
 doc-build/
 build-*/
+out-*/
+build-logs/
 
 # NSIS built executables
 src/installer/*.exe
@@ -54,6 +56,7 @@ repo/
 
 # GitHub Actions generated files
 .ccache/
+.ccache-mxe/
 node_modules/
 VULKAN_SDK/
 
@@ -63,3 +66,6 @@ GIT-TAG
 
 # verify-release.sh downloads
 verify/
+
+# OpenCode / Sisyphus agent workspace
+.sisyphus/

@@ -8,6 +8,7 @@
 #include <dlfcn.h>
 
 #include <android/api-level.h>
+#include <android/log.h>
 #include <android/native_window_jni.h>
 #include <core/hw/aes/key.h>
 #include <core/loader/smdh.h>
@@ -1044,12 +1045,18 @@ jobjectArray Java_org_citra_citra_1emu_NativeLibrary_getSavestateInfo(
 
 void Java_org_citra_citra_1emu_NativeLibrary_saveState([[maybe_unused]] JNIEnv* env,
                                                        [[maybe_unused]] jobject obj, jint slot) {
-    Core::System::GetInstance().SendSignal(Core::System::Signal::Save, slot);
+    if (!Core::System::GetInstance().SendSignal(Core::System::Signal::Save, slot)) {
+        __android_log_print(ANDROID_LOG_WARN, "NativeLibrary",
+                            "Save state failed: another operation in progress");
+    }
 }
 
 void Java_org_citra_citra_1emu_NativeLibrary_loadState([[maybe_unused]] JNIEnv* env,
                                                        [[maybe_unused]] jobject obj, jint slot) {
-    Core::System::GetInstance().SendSignal(Core::System::Signal::Load, slot);
+    if (!Core::System::GetInstance().SendSignal(Core::System::Signal::Load, slot)) {
+        __android_log_print(ANDROID_LOG_WARN, "NativeLibrary",
+                            "Load state failed: another operation in progress");
+    }
 }
 
 void Java_org_citra_citra_1emu_NativeLibrary_logDeviceInfo([[maybe_unused]] JNIEnv* env,

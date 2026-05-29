@@ -114,6 +114,41 @@ DirectionState GetStickDirectionState(s16 circle_pad_x, s16 circle_pad_y) {
     return state;
 }
 
+#ifdef ENABLE_REMOTE_SERVER
+void ApplyRemoteButtons(Core::System& system, PadState& state) {
+    using namespace Settings::NativeButton;
+
+    const auto buttons = system.RemoteInput().GetButtonSnapshot();
+    auto pressed = [&buttons](Values button) {
+        return buttons[button - BUTTON_HID_BEGIN];
+    };
+
+    state.a.Assign(state.a.Value() || pressed(A));
+    state.b.Assign(state.b.Value() || pressed(B));
+    state.x.Assign(state.x.Value() || pressed(X));
+    state.y.Assign(state.y.Value() || pressed(Y));
+    state.right.Assign(state.right.Value() || pressed(Right));
+    state.left.Assign(state.left.Value() || pressed(Left));
+    state.up.Assign(state.up.Value() || pressed(Up));
+    state.down.Assign(state.down.Value() || pressed(Down));
+    state.l.Assign(state.l.Value() || pressed(L));
+    state.r.Assign(state.r.Value() || pressed(R));
+    state.start.Assign(state.start.Value() || pressed(Start));
+    state.select.Assign(state.select.Value() || pressed(Select));
+}
+
+void ApplyRemoteTouch(Core::System& system, TouchDataEntry& touch_entry) {
+    const auto touch = system.RemoteInput().GetTouchStatus();
+    if (!touch.pressed) {
+        return;
+    }
+
+    touch_entry.x = touch.x;
+    touch_entry.y = touch.y;
+    touch_entry.valid.Assign(1);
+}
+#endif
+
 void Module::LoadInputDevices() {
     LOG_DEBUG(Frontend, "Loading input devices");
     std::transform(Settings::values.current_input_profile.buttons.begin() +
@@ -160,6 +195,9 @@ void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
         s16 circle_pad_x = data.c_pad_x;
         s16 circle_pad_y = data.c_pad_y;
 
+#ifdef ENABLE_REMOTE_SERVER
+        ApplyRemoteButtons(system, state);
+#endif
         system.Movie().HandlePadAndCircleStatus(state, circle_pad_x, circle_pad_y);
 
         mem->pad.current_state.hex = state.hex;
@@ -200,6 +238,9 @@ void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
         touch_entry.y = static_cast<u16>(data.touch_y);
         touch_entry.valid.Assign(pressed ? 1 : 0);
 
+#ifdef ENABLE_REMOTE_SERVER
+        ApplyRemoteTouch(system, touch_entry);
+#endif
         system.Movie().HandleTouchStatus(touch_entry);
     } else {
         state.a.Assign(buttons[A - BUTTON_HID_BEGIN]->GetStatus());
@@ -216,6 +257,10 @@ void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
         state.select.Assign(buttons[Select - BUTTON_HID_BEGIN]->GetStatus());
         state.debug.Assign(buttons[Debug - BUTTON_HID_BEGIN]->GetStatus());
         state.gpio14.Assign(buttons[Gpio14 - BUTTON_HID_BEGIN]->GetStatus());
+
+#ifdef ENABLE_REMOTE_SERVER
+        ApplyRemoteButtons(system, state);
+#endif
 
         // Get current circle pad position and update circle pad direction
         float circle_pad_x_f, circle_pad_y_f;
@@ -293,6 +338,9 @@ void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
         touch_entry.y = static_cast<u16>(y * Core::kScreenBottomHeight);
         touch_entry.valid.Assign(pressed ? 1 : 0);
 
+#ifdef ENABLE_REMOTE_SERVER
+        ApplyRemoteTouch(system, touch_entry);
+#endif
         system.Movie().HandleTouchStatus(touch_entry);
     }
 

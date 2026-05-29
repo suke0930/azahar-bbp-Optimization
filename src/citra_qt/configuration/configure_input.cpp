@@ -15,7 +15,9 @@
 #include "citra_qt/configuration/config.h"
 #include "citra_qt/configuration/configure_input.h"
 #include "citra_qt/configuration/configure_motion_touch.h"
+#include "common/logging/log.h"
 #include "common/param_package.h"
+#include "common/settings.h"
 #include "core/core.h"
 #include "ui_configure_input.h"
 
@@ -655,8 +657,12 @@ void ConfigureInput::keyPressEvent(QKeyEvent* event) {
             if (hotkey_list.contains(QKeySequence(event->key())) ||
                 GetUsedKeyboardKeys().contains(QKeySequence(event->key()))) {
                 SetPollingResult({}, true);
-                QMessageBox::critical(this, tr("Error!"),
-                                      tr("You're using a key that's already bound."));
+                if (Settings::values.enable_remote_server.GetValue()) {
+                    LOG_ERROR(Frontend, "Key already bound: rejecting input");
+                } else {
+                    QMessageBox::critical(this, tr("Error!"),
+                                          tr("You're using a key that's already bound."));
+                }
                 return;
             }
             SetPollingResult(Common::ParamPackage{InputCommon::GenerateKeyboardParam(event->key())},

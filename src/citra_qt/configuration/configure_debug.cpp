@@ -87,6 +87,15 @@ ConfigureDebug::ConfigureDebug(bool is_powered_on_, QWidget* parent)
     ui->toggle_dump_command_buffers->setEnabled(!is_powered_on);
     ui->enable_rpc_server->setEnabled(!is_powered_on);
     ui->toggle_unique_data_console_type->setEnabled(!is_powered_on);
+#ifdef ENABLE_REMOTE_SERVER
+    ui->enable_remote_server->setEnabled(!is_powered_on);
+    connect(ui->enable_remote_server, &QCheckBox::toggled, [this](bool checked) {
+        ui->remote_server_port->setEnabled(checked);
+        ui->remote_server_bind_address->setEnabled(checked);
+    });
+#else
+    ui->remote_server_groupbox->setVisible(false);
+#endif
 
     // Set a minimum width for the label to prevent the slider from changing size.
     // This scales across DPIs. (This value should be enough for "xxx%")
@@ -129,6 +138,14 @@ void ConfigureDebug::SetConfiguration() {
 #ifndef ENABLE_SCRIPTING
     ui->enable_rpc_server->setVisible(false);
 #endif // !ENABLE_SCRIPTING
+#ifdef ENABLE_REMOTE_SERVER
+    ui->enable_remote_server->setChecked(Settings::values.enable_remote_server.GetValue());
+    ui->remote_server_port->setValue(Settings::values.remote_server_port.GetValue());
+    ui->remote_server_bind_address->setText(
+        QString::fromStdString(Settings::values.remote_server_bind_address.GetValue()));
+    ui->remote_server_port->setEnabled(Settings::values.enable_remote_server.GetValue());
+    ui->remote_server_bind_address->setEnabled(Settings::values.enable_remote_server.GetValue());
+#endif
     ui->toggle_unique_data_console_type->setChecked(
         Settings::values.toggle_unique_data_console_type.GetValue());
     ui->break_on_unmapped_memory_access->setChecked(
@@ -176,6 +193,12 @@ void ConfigureDebug::ApplyConfiguration() {
     Settings::values.deterministic_async_operations =
         ui->deterministic_async_operations->isChecked();
     Settings::values.enable_rpc_server = ui->enable_rpc_server->isChecked();
+#ifdef ENABLE_REMOTE_SERVER
+    Settings::values.enable_remote_server = ui->enable_remote_server->isChecked();
+    Settings::values.remote_server_port = static_cast<u16>(ui->remote_server_port->value());
+    Settings::values.remote_server_bind_address =
+        ui->remote_server_bind_address->text().toStdString();
+#endif
     Settings::values.toggle_unique_data_console_type =
         ui->toggle_unique_data_console_type->isChecked();
     Settings::values.break_on_unmapped_memory_access =
@@ -207,6 +230,7 @@ void ConfigureDebug::SetupPerGameUI() {
     ui->toggle_unique_data_console_type->setVisible(false);
     ui->break_on_unmapped_memory_access->setVisible(false);
     ui->toggle_cpu_jit->setVisible(false);
+    ui->remote_server_groupbox->setVisible(false);
 }
 
 void ConfigureDebug::RetranslateUI() {
