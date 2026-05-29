@@ -38,6 +38,31 @@ std::span<const std::shared_ptr<CheatBase>> CheatEngine::GetCheats() const {
     return cheats_list;
 }
 
+std::vector<CheatSnapshot> CheatEngine::GetCheatSnapshots() const {
+    std::vector<CheatSnapshot> snapshots;
+    std::shared_lock lock{cheats_list_mutex};
+    snapshots.reserve(cheats_list.size());
+
+    for (const auto& cheat : cheats_list) {
+        snapshots.push_back({.name = cheat->GetName(),
+                             .type = cheat->GetType(),
+                             .code = cheat->GetCode(),
+                             .enabled = cheat->IsEnabled()});
+    }
+
+    return snapshots;
+}
+
+bool CheatEngine::SetCheatEnabled(std::size_t index, bool enabled) {
+    std::unique_lock lock{cheats_list_mutex};
+    if (index >= cheats_list.size()) {
+        return false;
+    }
+
+    cheats_list[index]->SetEnabled(enabled);
+    return true;
+}
+
 void CheatEngine::AddCheat(std::shared_ptr<CheatBase>&& cheat) {
     std::unique_lock lock{cheats_list_mutex};
     cheats_list.push_back(std::move(cheat));
@@ -64,6 +89,15 @@ void CheatEngine::UpdateCheat(std::size_t index, std::shared_ptr<CheatBase>&& ne
 void CheatEngine::SaveCheatFile(u64 title_id) const {
     const std::string cheat_dir = FileUtil::GetUserPath(FileUtil::UserPath::CheatsDir);
     const std::string filepath = fmt::format("{}{:016X}.txt", cheat_dir, title_id);
+    std::vector<std::string> serialized_cheats;
+
+    {
+        std::shared_lock lock{cheats_list_mutex};
+        serialized_cheats.reserve(cheats_list.size());
+        for (const auto& cheat : cheats_list) {
+            serialized_cheats.push_back(cheat->ToString());
+        }
+    }
 
     LOG_INFO(Core_Cheats, "Attempting to save cheats file: {}", filepath);
 
@@ -72,9 +106,8 @@ void CheatEngine::SaveCheatFile(u64 title_id) const {
     }
     FileUtil::IOFile file(filepath, "w");
 
-    auto cheats = GetCheats();
-    for (const auto& cheat : cheats) {
-        file.WriteString(cheat->ToString());
+    for (const auto& cheat : serialized_cheats) {
+        file.WriteString(cheat);
     }
 }
 
