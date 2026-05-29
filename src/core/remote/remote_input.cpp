@@ -15,56 +15,61 @@ std::size_t InputState::ButtonIndex(Settings::NativeButton::Values button) {
     return static_cast<std::size_t>(button - Settings::NativeButton::BUTTON_HID_BEGIN);
 }
 
-void InputState::PressButton(Settings::NativeButton::Values button) {
+void InputState::PressButtonLocked(Settings::NativeButton::Values button) {
     if (IsHidButton(button)) {
-        buttons[ButtonIndex(button)].store(true);
+        buttons[ButtonIndex(button)] = true;
     }
 }
 
-void InputState::ReleaseButton(Settings::NativeButton::Values button) {
+void InputState::ReleaseButtonLocked(Settings::NativeButton::Values button) {
     if (IsHidButton(button)) {
-        buttons[ButtonIndex(button)].store(false);
+        buttons[ButtonIndex(button)] = false;
+    }
+}
+
+void InputState::PressButtons(const std::vector<Settings::NativeButton::Values>& button_list) {
+    std::scoped_lock lock{mutex};
+    for (const auto button : button_list) {
+        PressButtonLocked(button);
+    }
+}
+
+void InputState::ReleaseButtons(const std::vector<Settings::NativeButton::Values>& button_list) {
+    std::scoped_lock lock{mutex};
+    for (const auto button : button_list) {
+        ReleaseButtonLocked(button);
     }
 }
 
 void InputState::ReleaseAll() {
-    for (auto& button : buttons) {
-        button.store(false);
-    }
-    ReleaseTouch();
+    std::scoped_lock lock{mutex};
+    buttons.fill(false);
+    touch = {};
 }
 
-bool InputState::GetButtonStatus(Settings::NativeButton::Values button) const {
-    if (!IsHidButton(button)) {
-        return false;
-    }
-    return buttons[ButtonIndex(button)].load();
+InputState::ButtonSnapshot InputState::GetButtonSnapshot() const {
+    std::scoped_lock lock{mutex};
+    return buttons;
 }
 
 void InputState::PressTouch(u16 x, u16 y) {
-    touch_x.store(x);
-    touch_y.store(y);
-    touch_pressed.store(true);
+    std::scoped_lock lock{mutex};
+    touch = {.x = x, .y = y, .pressed = true};
 }
 
 void InputState::MoveTouch(u16 x, u16 y) {
-    touch_x.store(x);
-    touch_y.store(y);
-    touch_pressed.store(true);
+    std::scoped_lock lock{mutex};
+    touch = {.x = x, .y = y, .pressed = true};
 }
 
 void InputState::ReleaseTouch() {
-    touch_pressed.store(false);
-    touch_x.store(0);
-    touch_y.store(0);
+    std::scoped_lock lock{mutex};
+    touch = {};
 }
 
 InputState::TouchStatus InputState::GetTouchStatus() const {
-    return {
-        .x = touch_x.load(),
-        .y = touch_y.load(),
-        .pressed = touch_pressed.load(),
-    };
+    std::scoped_lock lock{mutex};
+    return touch;
 }
 
 } // namespace Remote

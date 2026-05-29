@@ -5,8 +5,9 @@
 #pragma once
 
 #include <array>
-#include <atomic>
 #include <cstddef>
+#include <mutex>
+#include <vector>
 
 #include "common/common_types.h"
 #include "common/settings.h"
@@ -15,17 +16,19 @@ namespace Remote {
 
 class InputState {
 public:
+    using ButtonSnapshot = std::array<bool, Settings::NativeButton::NUM_BUTTONS_HID>;
+
     struct TouchStatus {
         u16 x = 0;
         u16 y = 0;
         bool pressed = false;
     };
 
-    void PressButton(Settings::NativeButton::Values button);
-    void ReleaseButton(Settings::NativeButton::Values button);
+    void PressButtons(const std::vector<Settings::NativeButton::Values>& buttons);
+    void ReleaseButtons(const std::vector<Settings::NativeButton::Values>& buttons);
     void ReleaseAll();
 
-    [[nodiscard]] bool GetButtonStatus(Settings::NativeButton::Values button) const;
+    [[nodiscard]] ButtonSnapshot GetButtonSnapshot() const;
 
     void PressTouch(u16 x, u16 y);
     void MoveTouch(u16 x, u16 y);
@@ -35,11 +38,12 @@ public:
 private:
     [[nodiscard]] static bool IsHidButton(Settings::NativeButton::Values button);
     [[nodiscard]] static std::size_t ButtonIndex(Settings::NativeButton::Values button);
+    void PressButtonLocked(Settings::NativeButton::Values button);
+    void ReleaseButtonLocked(Settings::NativeButton::Values button);
 
-    std::array<std::atomic_bool, Settings::NativeButton::NUM_BUTTONS_HID> buttons{};
-    std::atomic<u16> touch_x{0};
-    std::atomic<u16> touch_y{0};
-    std::atomic_bool touch_pressed{false};
+    mutable std::mutex mutex;
+    ButtonSnapshot buttons{};
+    TouchStatus touch{};
 };
 
 } // namespace Remote

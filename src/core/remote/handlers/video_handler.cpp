@@ -27,6 +27,7 @@ struct ScreenshotCapture {
     std::vector<u8> bgra;
     std::promise<bool> completion;
     bool invert_y = false;
+    VideoCore::ScreenshotPixelFormat format = VideoCore::ScreenshotPixelFormat::BGRA8;
 };
 
 void SetJson(RemoteResponse& res, int status, const nlohmann::json& body) {
@@ -35,17 +36,24 @@ void SetJson(RemoteResponse& res, int status, const nlohmann::json& body) {
     res.body = body.dump();
 }
 
-std::vector<u8> ConvertBgraToRgba(const std::vector<u8>& bgra, u32 width, u32 height, bool invert_y) {
-    std::vector<u8> rgba(bgra.size());
+std::vector<u8> ConvertToRgba(const std::vector<u8>& pixels, u32 width, u32 height, bool invert_y,
+                             VideoCore::ScreenshotPixelFormat format) {
+    std::vector<u8> rgba(pixels.size());
     for (u32 y = 0; y < height; y++) {
         const u32 src_y = invert_y ? (height - 1 - y) : y;
         for (u32 x = 0; x < width; x++) {
             const std::size_t src = (static_cast<std::size_t>(src_y) * width + x) * 4;
             const std::size_t dst = (static_cast<std::size_t>(y) * width + x) * 4;
-            rgba[dst] = bgra[src + 2];
-            rgba[dst + 1] = bgra[src + 1];
-            rgba[dst + 2] = bgra[src];
-            rgba[dst + 3] = bgra[src + 3];
+            if (format == VideoCore::ScreenshotPixelFormat::BGRA8) {
+                rgba[dst] = pixels[src + 2];
+                rgba[dst + 1] = pixels[src + 1];
+                rgba[dst + 2] = pixels[src];
+            } else {
+                rgba[dst] = pixels[src];
+                rgba[dst + 1] = pixels[src + 1];
+                rgba[dst + 2] = pixels[src + 2];
+            }
+            rgba[dst + 3] = pixels[src + 3];
         }
     }
     return rgba;
@@ -67,18 +75,23 @@ void HandleVideoScreenshot(Core::System& system, const nlohmann::json& /*body*/,
     }
 
     const Layout::FramebufferLayout layout = Layout::DefaultFrameLayout(
-        Core::kScreenTopWidth, Core::kScreenTopHeight + Core::kScreenBottomHeight, false, true);
+        Core::kScreenTopWidth, Core::kScreenTopHeight + Core::kScreenBottomHeight, false, false);
     auto capture =
         std::make_shared<ScreenshotCapture>(static_cast<std::size_t>(layout.width) * layout.height);
     auto future = capture->completion.get_future();
 
-    renderer.RequestScreenshot(
-        capture->bgra.data(),
-        [capture](bool invert_y) {
-            capture->invert_y = invert_y;
-            capture->completion.set_value(true);
-        },
-        layout);
+    if (!renderer.RequestScreenshot(
+            capture->bgra.data(),
+            [capture](bool invert_y, VideoCore::ScreenshotPixelFormat format) {
+                capture->invert_y = invert_y;
+                capture->format = format;
+                capture->completion.set_value(true);
+            },
+            layout)) {
+        SetJson(res, 409,
+                {{"error", "Screenshot already pending"}, {"code", "screenshot_pending"}});
+        return;
+    }
 
     if (system.frame_limiter.IsFrameAdvancing()) {
         system.frame_limiter.AdvanceFrame();
@@ -90,7 +103,8 @@ void HandleVideoScreenshot(Core::System& system, const nlohmann::json& /*body*/,
         return;
     }
 
-    const auto rgba = ConvertBgraToRgba(capture->bgra, layout.width, layout.height, capture->invert_y);
+    const auto rgba = ConvertToRgba(capture->bgra, layout.width, layout.height, capture->invert_y,
+                                   capture->format);
     std::vector<u8> png;
     const u32 encode_result = lodepng::encode(png, rgba.data(), layout.width, layout.height);
     if (encode_result != 0) {

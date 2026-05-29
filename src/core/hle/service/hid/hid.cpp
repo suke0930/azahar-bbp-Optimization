@@ -118,19 +118,23 @@ DirectionState GetStickDirectionState(s16 circle_pad_x, s16 circle_pad_y) {
 void ApplyRemoteButtons(Core::System& system, PadState& state) {
     using namespace Settings::NativeButton;
 
-    auto& remote_input = system.RemoteInput();
-    state.a.Assign(state.a.Value() || remote_input.GetButtonStatus(A));
-    state.b.Assign(state.b.Value() || remote_input.GetButtonStatus(B));
-    state.x.Assign(state.x.Value() || remote_input.GetButtonStatus(X));
-    state.y.Assign(state.y.Value() || remote_input.GetButtonStatus(Y));
-    state.right.Assign(state.right.Value() || remote_input.GetButtonStatus(Right));
-    state.left.Assign(state.left.Value() || remote_input.GetButtonStatus(Left));
-    state.up.Assign(state.up.Value() || remote_input.GetButtonStatus(Up));
-    state.down.Assign(state.down.Value() || remote_input.GetButtonStatus(Down));
-    state.l.Assign(state.l.Value() || remote_input.GetButtonStatus(L));
-    state.r.Assign(state.r.Value() || remote_input.GetButtonStatus(R));
-    state.start.Assign(state.start.Value() || remote_input.GetButtonStatus(Start));
-    state.select.Assign(state.select.Value() || remote_input.GetButtonStatus(Select));
+    const auto buttons = system.RemoteInput().GetButtonSnapshot();
+    auto pressed = [&buttons](Values button) {
+        return buttons[button - BUTTON_HID_BEGIN];
+    };
+
+    state.a.Assign(state.a.Value() || pressed(A));
+    state.b.Assign(state.b.Value() || pressed(B));
+    state.x.Assign(state.x.Value() || pressed(X));
+    state.y.Assign(state.y.Value() || pressed(Y));
+    state.right.Assign(state.right.Value() || pressed(Right));
+    state.left.Assign(state.left.Value() || pressed(Left));
+    state.up.Assign(state.up.Value() || pressed(Up));
+    state.down.Assign(state.down.Value() || pressed(Down));
+    state.l.Assign(state.l.Value() || pressed(L));
+    state.r.Assign(state.r.Value() || pressed(R));
+    state.start.Assign(state.start.Value() || pressed(Start));
+    state.select.Assign(state.select.Value() || pressed(Select));
 }
 
 void ApplyRemoteTouch(Core::System& system, TouchDataEntry& touch_entry) {

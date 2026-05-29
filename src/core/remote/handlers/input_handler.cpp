@@ -83,15 +83,11 @@ std::vector<Button> ParseButtons(const nlohmann::json& body) {
 }
 
 void PressButtons(Core::System& system, const std::vector<Button>& buttons) {
-    for (const auto button : buttons) {
-        system.RemoteInput().PressButton(button);
-    }
+    system.RemoteInput().PressButtons(buttons);
 }
 
 void ReleaseButtons(Core::System& system, const std::vector<Button>& buttons) {
-    for (const auto button : buttons) {
-        system.RemoteInput().ReleaseButton(button);
-    }
+    system.RemoteInput().ReleaseButtons(buttons);
 }
 
 u16 GetTouchCoordinate(const nlohmann::json& body, const char* key, int max_value) {

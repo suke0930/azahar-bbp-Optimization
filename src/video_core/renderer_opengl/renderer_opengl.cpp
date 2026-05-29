@@ -2,6 +2,9 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <functional>
+#include <mutex>
+
 #include "common/logging/log.h"
 #include "common/microprofile.h"
 #include "common/settings.h"
@@ -138,36 +141,44 @@ void RendererOpenGL::SwapBuffers() {
 }
 
 void RendererOpenGL::RenderScreenshot() {
-    if (settings.screenshot_requested.exchange(false)) {
-        // Draw this frame to the screenshot framebuffer
-        screenshot_framebuffer.Create();
-        GLuint old_read_fb = state.draw.read_framebuffer;
-        GLuint old_draw_fb = state.draw.draw_framebuffer;
-        state.draw.read_framebuffer = state.draw.draw_framebuffer = screenshot_framebuffer.handle;
-        state.Apply();
-
-        const Layout::FramebufferLayout layout{settings.screenshot_framebuffer_layout};
-
-        GLuint renderbuffer;
-        glGenRenderbuffers(1, &renderbuffer);
-        glBindRenderbuffer(GL_RENDERBUFFER, renderbuffer);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB8, layout.width, layout.height);
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER,
-                                  renderbuffer);
-
-        DrawScreens(layout, false);
-
-        glReadPixels(0, 0, layout.width, layout.height, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
-                     settings.screenshot_bits);
-
-        screenshot_framebuffer.Release();
-        state.draw.read_framebuffer = old_read_fb;
-        state.draw.draw_framebuffer = old_draw_fb;
-        state.Apply();
-        glDeleteRenderbuffers(1, &renderbuffer);
-
-        settings.screenshot_complete_callback(true);
+    void* screenshot_bits{};
+    std::function<void(bool, VideoCore::ScreenshotPixelFormat)> screenshot_complete_callback;
+    Layout::FramebufferLayout layout;
+    {
+        std::scoped_lock lock{settings.screenshot_mutex};
+        if (!settings.screenshot_requested.exchange(false)) {
+            return;
+        }
+        screenshot_bits = settings.screenshot_bits;
+        screenshot_complete_callback = settings.screenshot_complete_callback;
+        layout = settings.screenshot_framebuffer_layout;
     }
+
+    // Draw this frame to the screenshot framebuffer
+    screenshot_framebuffer.Create();
+    GLuint old_read_fb = state.draw.read_framebuffer;
+    GLuint old_draw_fb = state.draw.draw_framebuffer;
+    state.draw.read_framebuffer = state.draw.draw_framebuffer = screenshot_framebuffer.handle;
+    state.Apply();
+
+    GLuint renderbuffer;
+    glGenRenderbuffers(1, &renderbuffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, renderbuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB8, layout.width, layout.height);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, renderbuffer);
+
+    DrawScreens(layout, false);
+
+    glReadPixels(0, 0, layout.width, layout.height, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
+                 screenshot_bits);
+
+    screenshot_framebuffer.Release();
+    state.draw.read_framebuffer = old_read_fb;
+    state.draw.draw_framebuffer = old_draw_fb;
+    state.Apply();
+    glDeleteRenderbuffers(1, &renderbuffer);
+
+    screenshot_complete_callback(true, VideoCore::ScreenshotPixelFormat::BGRA8);
 }
 
 void RendererOpenGL::PrepareRendertarget() {

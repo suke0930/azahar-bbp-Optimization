@@ -2,6 +2,8 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <utility>
+
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/frontend/emu_window.h"
@@ -55,15 +57,18 @@ bool RendererBase::IsScreenshotPending() const {
     return settings.screenshot_requested;
 }
 
-void RendererBase::RequestScreenshot(void* data, std::function<void(bool)> callback,
+bool RendererBase::RequestScreenshot(void* data,
+                                     std::function<void(bool, ScreenshotPixelFormat)> callback,
                                      const Layout::FramebufferLayout& layout) {
+    std::scoped_lock lock{settings.screenshot_mutex};
     if (settings.screenshot_requested) {
         LOG_ERROR(Render, "A screenshot is already requested or in progress, ignoring the request");
-        return;
+        return false;
     }
     settings.screenshot_bits = data;
-    settings.screenshot_complete_callback = callback;
+    settings.screenshot_complete_callback = std::move(callback);
     settings.screenshot_framebuffer_layout = layout;
     settings.screenshot_requested = true;
+    return true;
 }
 } // namespace VideoCore
